@@ -1,6 +1,6 @@
 # 10-day outlook
 
-Date: 2026-11-24. Added after Phase 6. Runs on this computer and, since the afternoon of 2026-11-24, on a schedule. Not deployed.
+Date: 2026-11-24. Added after Phase 6. Runs on a schedule on GitHub Actions since the evening of 2026-11-24, and is published at https://cnwphoto.github.io/vail-snow-forecaster/.
 
 > **Updated 2026-11-24 after the gauge-tick correction** (`GAUGE_TICKS.md`). The scores below are the rerun ones.
 
@@ -49,6 +49,8 @@ The 10-day rows and the map now lead with a likely range to the half inch (the 2
 Snow is now the lead number everywhere. The Why tab, the Score tab and the analogs give inches of snow first and water second. The gauge measures water, so "measured" snow on the Score tab is that water at the snow-to-water ratio the forecast used that day.
 
 ## How often it updates
+
+> **Update, evening of 2026-11-24.** The jobs now run on GitHub Actions (`.github/workflows/forecast.yml`), not on the Mac; the Mac schedule was removed. Times are close to the table below: map at 10:50 am, 10-day outlook at 10:55 pm, 4:55 am, 1:15 pm (after the afternoon Blend) and 4:55 pm, alerts at 9:45 pm and 5:05 am, all Mountain Standard Time. GitHub starts scheduled jobs late when it is busy, sometimes by several minutes to an hour. Each job ran once there with no error.
 
 Four scheduled jobs were installed on this Mac on 2026-11-24 (`deploy/install_schedule.sh`), and each ran once under the scheduler with no error. `uv run vailsnow status` shows when each piece last updated.
 

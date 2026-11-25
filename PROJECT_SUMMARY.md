@@ -10,8 +10,9 @@ A snowfall forecast for Vail Mountain that works at the scale of a zone or a sin
 |---|---|
 | Code | About 8,800 lines of Python, 840 of front end, 198 tests |
 | Data | 58 GB, all free and public: SNOTEL, HRRR, GFS, GEFS, National Blend, NWS grids, ERA5, PRISM, SNODAS, USGS lidar, OpenStreetMap, airport stations |
-| Runs | Unattended on this Mac: map once a day, 10-day outlook four times, alerts at 9:45 pm and 5:05 am |
-| Not done | Not deployed to the web. Alerts go to a file, not a phone |
+| Runs | Unattended on GitHub Actions, free for a public repository: map once a day, 10-day outlook five times, alerts at 9:45 pm and 5:05 am. Nothing runs at home |
+| Live | https://cnwphoto.github.io/vail-snow-forecaster/ and, once the pull request is merged, build 005 on purposebuilt.studio |
+| Not done | Alerts go to the map banner and a log, not a phone |
 
 ## The most striking details
 
@@ -68,12 +69,12 @@ You also made three calls that shaped the build: dropping the depth logger, usin
 4. **The 24, 48 and 72 hour views can still read "0 to X"** when a storm inside three days is uncertain. The 10-day view no longer does: a day with a fair chance shows the range to expect if it snows, and a day with a low chance reads 0.
 5. **The map updates once a day.** An evening rebuild from the 5 pm model run is built for alerts but not for the map.
 6. **The European ensemble isn't in it.** It is free and would likely help most at days 6 to 10.
-7. **Nobody is told when a scheduled run fails.** The page shows a stale time, and that is all.
+7. **A failed scheduled run is easy to miss.** GitHub emails the repository owner when a job fails, and the page shows a stale time. GitHub also pauses schedules in a public repository after 60 days without activity; I have not confirmed that the jobs' own commits count as activity.
 8. **The zone boundaries are still my draft.** Every card and outline uses them, and you haven't reviewed them.
 
 ## Other thoughts
 
 - **The honest pitch is not "more accurate than the pros".** It is as accurate as the best public blend at the one place that can be checked, and it goes further than they do in three ways: slope-scale detail, your local knowledge, and a public record of its own misses.
 - **This season is the real test.** Only one forecast so far was logged on the day; the rest were rebuilt afterward. By spring the scorecard will say whether the held-out numbers hold up.
-- **If it goes public, a few things matter.** It should say plainly that it is not affiliated with Vail Resorts, is not an official forecast and is not avalanche advice. It should keep the data credits. It should stay non-commercial, since that is the basis several of the sources and decisions rest on.
+- **It is public now, and a few things matter.** The page, the repository and the site entry each say it is not affiliated with Vail Resorts, is not an official forecast and is not avalanche advice. The data credits are kept. It should stay non-commercial, since that is the basis several of the sources and decisions rest on.
 - **The most useful thing you did was distrust it.** Each time a number looked wrong to you, something real was behind it.

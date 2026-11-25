@@ -32,8 +32,8 @@ Start with `PROJECT_SUMMARY.md` for what the project is and how well it works. W
 | 2. Historical ingest and storm catalogue | Done; dates corrected 2026-11-24 | `STORM_CLIMATOLOGY.md`, `PHASE2_SUMMARY.md` |
 | 3. Model layers 1 to 4 with hindcast scores | Done, with gaps listed in the summary | `PHASE3_SUMMARY.md` |
 | 4. Wind, settlement, uncertainty | Done; wind and sun are unverifiable | `PHASE4_SUMMARY.md` |
-| 5. Map UI on live forecasts | Done locally; not deployed | `PHASE5_SUMMARY.md` |
-| 6. Scorecard, alerts and the other extras | Done and scheduled on this Mac; not deployed, nothing sent off it. Depth logger dropped by decision | `PHASE6_SUMMARY.md`, `ADDING_A_RESORT.md`, `TEN_DAY_OUTLOOK.md`, `GAUGE_TICKS.md` (corrected scores), `WIND_LOADING.md` |
+| 5. Map UI on live forecasts | Done; live at https://cnwphoto.github.io/vail-snow-forecaster/ | `PHASE5_SUMMARY.md` |
+| 6. Scorecard, alerts and the other extras | Done; runs on GitHub Actions since 2026-11-24 (the Mac schedule was removed that day). Alerts go to the map banner and the `state` branch, not to a phone. Depth logger dropped by decision | `PHASE6_SUMMARY.md`, `ADDING_A_RESORT.md`, `TEN_DAY_OUTLOOK.md`, `GAUGE_TICKS.md` (corrected scores), `WIND_LOADING.md` |
 
 ## Setup
 
@@ -125,7 +125,7 @@ uv run vailsnow wind-check
 uv run vailsnow check-resort
 ```
 
-Running it on a Mac instead of GitHub: four launchd jobs in `deploy/` do the same on a local schedule (forecast at 10:45 am, 10-day refresh at 4:55 and 10:55 am and pm, alerts at 9:45 pm and 5:05 am). Do not run both, or each forecast is logged twice.
+Running it on a Mac instead of GitHub: four launchd jobs in `deploy/` do the same on a local schedule (forecast at 10:45 am, 10-day refresh at 4:55 and 10:55 am and pm, alerts at 9:45 pm and 5:05 am). They are not installed: the GitHub jobs replaced them on 2026-11-24. Do not run both. The forecast log of record is on the `state` branch of the repository; `data/log/` on a computer is a copy that stops growing once the local jobs are off.
 
 ```bash
 uv run vailsnow status
