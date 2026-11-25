@@ -340,6 +340,9 @@ def write_map(resort: Resort, cells: dict, fields: dict[int, dict], total: dict 
     for k, f in fields.items():
         for kind in ("expected", "low", "high"):
             put(f"day_{k:02d}_{kind}", np.where(f[kind] >= DRAW_FROM_IN, f[kind], np.nan) if kind == "expected" else f[kind])
+        # the layer behind the day's own figure: the middle of the range it leads with, everywhere on the mountain.
+        # On an "if it snows" day that is what falls if it does snow; on a day that reads 0 it is empty.
+        put(f"day_{k:02d}_lead", f["lead"])
     if total is not None:
         for kind in ("expected", "low", "high"):
             put(f"total_{kind}", total[kind])
@@ -426,7 +429,8 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
                         "lead_lo_ratio": round(lo_w / mean, 3) if mean > 0.002 else 0.0, "lead_hi_ratio": round(hi_w / mean, 3) if mean > 0.002 else 0.0})
             wet = if_it_snows(levels5, [float(w[q]) for q in keys5], row["chance"]["1in"] / 100.0) if conv[head] > 0 else None
             row["if_it_snows"] = None if wet is None else {zid: round(max(wet * c, 1.0), 1) for zid, c in conv.items()}
-            fields[k] = {"expected": mean * pi, "likely": float(w["q50"]) * pi, "low": float(w["q10"]) * pi, "high": float(w["q90"]) * pi, "water": mean}
+            fields[k] = {"expected": mean * pi, "likely": float(w["q50"]) * pi, "low": float(w["q10"]) * pi, "high": float(w["q90"]) * pi, "water": mean,
+                         "lead": 0.5 * (lo_w + hi_w) * pi}
             # how the call for this day has moved: every earlier forecast made for it, oldest first
             issued = pd.Timestamp(row["issued"])
             past = history[(history["start"] == start) & (history["run"] < issued)] if len(history) else history
@@ -474,7 +478,7 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
     out = {"resort": resort.name, "headline_zone": head, "updated": now.isoformat(timespec="minutes"), "ensemble_run": run.isoformat(),
            "blend_run": blend_runs[-1] if blend_runs else None,
            "next_update": (run + pd.Timedelta(hours=CYCLE_H + 5, minutes=40)).isoformat(timespec="minutes"), "reference": ref.isoformat(),
-           "days": days, "blocks": blocks, "total": total, "map": bool(write and fields), "zones": [{"id": z["id"], "name": z["name"]} for z in zones],
+           "days": days, "blocks": blocks, "total": total, "map": bool(write and fields), "map_lead": bool(write and fields), "zones": [{"id": z["id"], "name": z["name"]} for z in zones],
            "skill": {k: {x: v[x] for x in ("skill_pct", "mae", "average_for_the_month_mae", "inside_10_90_pct", "n")} for k, v in skill["by_lead"].items()},
            "skill_blocks": skill["blocks"], "skill_seasons": f"{skill['seasons'][0] - 1} to {skill['seasons'][1]}", "wet_day_in": skill["wet_day_in"], "logged": logged}
     if write:

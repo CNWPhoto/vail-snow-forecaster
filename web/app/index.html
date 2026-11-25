@@ -8,24 +8,25 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
-<link href="app.css?v=20261125b" rel="stylesheet">
+<link href="app.css?v=20261125d" rel="stylesheet">
 </head>
 <body>
 <div id="map" aria-label="Snow forecast map"></div>
 
 <header id="bar">
-  <div class="group" id="windows" role="group" aria-label="Time window"></div>
-  <div class="group" id="layers" role="group" aria-label="Layer"></div>
-  <div class="group" id="range" role="group" aria-label="Range"></div>
+  <div id="barRow">
+    <div class="group" id="windows" role="group" aria-label="Time window"></div>
+    <div class="group" id="layers" role="group" aria-label="Layer"></div>
+    <div class="group" id="range" role="group" aria-label="Range"></div>
+  </div>
+  <!-- the day buttons and the hour slider sit under the rows above, however many lines those wrap to -->
+  <div id="daybar" class="group" role="group" aria-label="Day" hidden></div>
+  <div id="scrub" hidden>
+    <button id="play" aria-label="Play">&#9654;</button>
+    <input id="slider" type="range" min="0" max="11" step="1" value="11" aria-label="Hours into the forecast">
+    <output id="scrubLabel"></output>
+  </div>
 </header>
-
-<div id="scrub" hidden>
-  <button id="play" aria-label="Play">&#9654;</button>
-  <input id="slider" type="range" min="0" max="11" step="1" value="11" aria-label="Hours into the forecast">
-  <output id="scrubLabel"></output>
-</div>
-
-<div id="daybar" class="group" role="group" aria-label="Day" hidden></div>
 
 <aside id="panel">
   <button id="grip" aria-label="Expand or collapse the panel"><span></span></button>
@@ -60,6 +61,6 @@
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=20261125b"></script>
+<script src="app.js?v=20261125d"></script>
 </body>
 </html>

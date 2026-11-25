@@ -130,18 +130,19 @@ table.days tr.sum td { border-top: 2px solid var(--line); color: var(--text); }
 .tday.total { grid-template-columns: 1fr auto; border-bottom: 2px solid var(--line); }
 
 /* ---- map chrome ---- */
-#bar { position: fixed; top: 12px; left: calc(var(--panel-w) + 12px); right: 12px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 3; pointer-events: none; }
+#bar { position: fixed; top: 12px; left: calc(var(--panel-w) + 12px); right: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; z-index: 3; pointer-events: none; }
+#barRow { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
 .group { display: flex; background: rgba(11, 22, 34, .9); border: 1px solid var(--line); border-radius: 6px; padding: 3px; backdrop-filter: blur(8px); pointer-events: auto; }
 .group button { background: none; border: 0; padding: 6px 11px; border-radius: 4px; font-weight: 500; white-space: nowrap; cursor: pointer; color: var(--muted); }
 .group button[aria-pressed="true"] { background: var(--text); color: var(--ink); }
-#scrub { position: fixed; top: 58px; left: calc(var(--panel-w) + 12px); z-index: 3; display: flex; align-items: center; gap: 10px; background: rgba(11, 22, 34, .9);
+#scrub { display: flex; align-items: center; gap: 10px; max-width: 100%; pointer-events: auto; background: rgba(11, 22, 34, .9);
   border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; backdrop-filter: blur(8px); }
 #scrub[hidden] { display: none; }
 #play { background: var(--signal); border: 0; border-radius: 50%; width: 28px; height: 28px; color: #111; cursor: pointer; font-size: 11px; }
 #slider { width: 220px; accent-color: var(--signal); }
 #scrubLabel { font: 600 16px var(--display); letter-spacing: .05em; min-width: 132px; }
 
-#daybar { position: fixed; top: 58px; left: calc(var(--panel-w) + 12px); z-index: 3; max-width: calc(100vw - var(--panel-w) - 24px); overflow-x: auto; scrollbar-width: none; }
+#daybar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 #daybar[hidden] { display: none; }
 #daybar button { padding: 6px 9px; font-size: 13px; }
 /* the map buttons sit above the legend in one stack, so a taller legend pushes them up instead of sliding under them */
@@ -182,11 +183,11 @@ table.days tr.sum td { border-top: 2px solid var(--line); color: var(--text); }
   #panel.low #fine { display: none; }
   .seg { margin-left: 18px; }
   .lifthead span:not(:first-child), .lift .chip { width: 84px; }
-  #bar { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  #bar::-webkit-scrollbar { display: none; }
+  #bar { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); }
+  #barRow { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }
+  #barRow::-webkit-scrollbar { display: none; }
   .group button { padding: 7px 10px; }
-  #scrub { left: 8px; right: 8px; top: calc(54px + env(safe-area-inset-top)); }
-  #daybar { left: 8px; right: 8px; max-width: none; top: calc(54px + env(safe-area-inset-top)); }
+  #scrub { align-self: stretch; }
   #slider { flex: 1; width: auto; }
   #corner { display: contents; }                 /* on a phone the buttons go top right and the legend sits above the sheet */
   #mapctl { position: fixed; z-index: 3; top: calc(104px + env(safe-area-inset-top)); right: 8px; }

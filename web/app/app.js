@@ -89,7 +89,10 @@
   const baseOn = () => state.layer === 'base';
   const tenOK = () => !!(outlook && outlook.map && state.newest && outlook.days.some(d => d.available));
   const snowIn = v => (v < 0.5 ? '0' : v < 0.95 ? '<1' : fmt(v));           // whole-number sense for snow: no 0.2 in
-  const TEN_RANGES = [['low', 'Low end'], ['fallen', 'Expected'], ['high', 'High end']];
+  const tenDay = () => (state.day && outlook ? outlook.days[state.day - 1] : null);
+  /* The middle button names what the map shows: the range a day leads with, or the expected total for all ten. */
+  const tenMiddle = () => { const d = tenDay(); return !d ? 'Expected' : d.lead_if_snow ? 'If it snows' : 'Likely'; };
+  const tenRanges = () => [['low', 'Low end'], ['fallen', tenMiddle()], ['high', 'High end']];
   function tenZone(zid) {                           // [expected, low end, high end] inches of snow
     if (!state.day) return outlook.total.zones[zid];
     const d = outlook.days[state.day - 1];
@@ -136,7 +139,7 @@
     });
     const leaveSpecial = () => { if (state.win === 'scrub' || state.win === 'ten') { state.win = '72'; $('scrub').hidden = true; stop(); } };
     buttons($('layers'), baseOK() ? [...LAYERS, ['base', 'Base depth']] : LAYERS, 'layer', () => { if (state.win === 'scrub' || state.layer !== 'fallen') leaveSpecial(); if (state.layer !== 'fallen') state.range = 'fallen'; setControls(); refresh(); });
-    buttons($('range'), state.win === 'ten' ? TEN_RANGES : RANGES, 'range', () => { state.layer = 'fallen'; if (state.win === 'scrub') leaveSpecial(); setControls(); refresh(); });
+    buttons($('range'), state.win === 'ten' ? tenRanges() : RANGES, 'range', () => { state.layer = 'fallen'; if (state.win === 'scrub') leaveSpecial(); setControls(); refresh(); });
     setDaybar();
   }
 
@@ -144,6 +147,7 @@
   const base = () => `${DATA}/${state.run}`;
   const win = () => (state.win === 'scrub' || state.win === 'ten' ? '72' : state.win);
 
+  let opened = false;
   async function loadRun() {
     const runs = await json(DATA + '/runs.json');
     const current = runs.find(r => !r.replay) || runs[0];             // the newest real forecast: a replay never opens by default
@@ -164,6 +168,8 @@
       mapReady.then(() => { map.jumpTo({ center: view.center, zoom: view.zoom || 12.2 }); frame(view.center); });
     }
     zoneGeo = await json('static/zones.geojson');
+    if (tenOK() && !opened) tab('ten');                                // the 10-day list is the panel the page opens on
+    opened = true;
     // The newest of everything on the page: the map is rebuilt once a day, the 10-day outlook and base depth four times.
     const stamps = [meta.built.replace(' ', 'T').replace('Z', ''), ...(state.newest ? [outlook && outlook.updated, depth && depth.updated] : [])].filter(Boolean).sort();
     const when = day(stamps[stamps.length - 1], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -189,7 +195,7 @@
     if (state.point) showPoint(state.point);
     const ten = state.win === 'ten', wasBase = baseOn();
     showGauge();
-    const data = await json(wasBase ? `${DATA}/depth/base.geojson?u=${encodeURIComponent(depth.updated)}` : ten ? `${DATA}/outlook/${state.day ? 'day_' + pad(state.day) : 'total'}_${state.range === 'fallen' ? 'expected' : state.range}.geojson?u=${encodeURIComponent(outlook.updated)}`
+    const data = await json(wasBase ? `${DATA}/depth/base.geojson?u=${encodeURIComponent(depth.updated)}` : ten ? `${DATA}/outlook/${state.day ? 'day_' + pad(state.day) : 'total'}_${state.range === 'fallen' ? (state.day && outlook.map_lead ? 'lead' : 'expected') : state.range}.geojson?u=${encodeURIComponent(outlook.updated)}`
       : `${base()}/contours/${name}.geojson`);
     if (ten !== (state.win === 'ten') || wasBase !== baseOn()) return;      // the view changed while the file was loading
     await mapReady;
@@ -464,7 +470,7 @@
     }
     const colors = density ? DENSITY : RAMP;
     const labels = density ? meta.density.labels : meta.bins.labels;
-    const tenTitle = `${{ low: 'Low end', fallen: 'Expected snow', high: 'High end' }[state.range]}, ${state.win === 'ten' ? tenWhen(false) : ''}, inches`;
+    const tenTitle = `${{ low: 'Low end', fallen: { 'Expected': 'Expected snow', 'If it snows': 'Snow if it snows', 'Likely': 'Likely snow' }[tenMiddle()], high: 'High end' }[state.range]}, ${state.win === 'ten' ? tenWhen(false) : ''}, inches`;
     const title = state.win === 'ten' ? tenTitle : density ? 'Snow density' : { fallen: state.range === 'fallen' ? 'New snow, inches' : (state.range === 'low' ? 'Low end, inches' : 'High end, inches'), settled: 'Settled depth, inches' }[state.layer];
     $('legend').innerHTML = `<div class="t">${title}</div><div class="sw">${colors.map(c => `<span style="background:${c}"></span>`).join('')}</div>
       <div class="lb">${labels.map(l => `<span>${l.replace('trace-1', '<1')}</span>`).join('')}</div>` + (state.layer === 'fallen' && state.win !== 'ten' ? '<div class="tag">Includes wind loading, tuned to local reports</div>' : '') +
