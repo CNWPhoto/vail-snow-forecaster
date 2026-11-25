@@ -111,18 +111,19 @@
      For day 1 that morning has happened, so it is what the gauge measured; for later days it is the forecast for the day before. */
   const pct = p => (p <= 5 ? 'under 5%' : p >= 95 ? 'over 95%' : p + '%');
   function morningLine(d, zid) {
-    const i = outlook.days.indexOf(d), when = `5 am ${day(d.start, { weekday: 'short' })}`, tag = `<i>${when} &middot; morning total</i>`;
+    const i = outlook.days.indexOf(d), wd = iso => day(iso, { weekday: 'short' }), when = `5 am ${wd(d.start)}`, tag = `<i>${when} &middot; morning total</i>`;
+    const before = new Date(new Date(d.start + 'Z').getTime() - 864e5).toISOString().slice(0, 19), span = `5 am ${wd(before)} to 5 am ${wd(d.start)}, overnight included`;
     if (i === 0) {
       const m = outlook.morning_measured;
       if (!m || m.snow_in == null) return '';
       const part = m.hours_reported < m.hours ? `, ${m.hours_reported} of ${m.hours} hours in` : '';
       const depth = m.depth_change_in == null ? '' : `, depth sensor ${m.depth_change_in > 0 ? '+' : ''}${m.depth_change_in} in`;
-      return `<span class="m got">${tag}<b>${hf(m.snow_in)} in</b><em>measured at the mid-mountain gauge${depth}${part}</em></span>`;
+      return `<span class="m got">${tag}<b>${hf(m.snow_in)} in</b><em>${span} &middot; measured at the mid-mountain gauge${depth}${part}</em></span>`;
     }
     const p = outlook.days[i - 1];
     if (!p || !p.available) return '';
     const r = (p.lead || p.mid)[zid], zero = half(r[1]) === 0;
-    return `<span class="m">${tag}<b>${rng(...r)} in</b><em>${zero ? '' : p.lead_if_snow ? 'if it snows, ' : 'likely, '}${pct(p.chance['1in'])} chance &middot; new in the 24 hours before</em></span>`;
+    return `<span class="m">${tag}<b>${rng(...r)} in</b><em>${zero ? '' : p.lead_if_snow ? 'if it snows, ' : 'likely, '}${pct(p.chance['1in'])} chance &middot; ${span}</em></span>`;
   }
   const tenWhen = long => (state.day ? day(outlook.days[state.day - 1].start, long ? { weekday: 'long', month: 'short', day: 'numeric' } : { weekday: 'short', month: 'short', day: 'numeric' }) : 'next 10 days');
 
@@ -430,7 +431,7 @@
     const sk = outlook.skill, lead = k => (sk[k] ? `${sk[k].skill_pct}%` : '');
     const hour = iso => day(iso, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
     el.innerHTML = `<div class="why"><h2>${zname}, next 10 days</h2>
-      <p class="note morn-note"><b>Morning total</b> is the number to check before skiing: new snow in the 24 hours before 5 am, the time and window of a morning snow report. It is this forecast's figure for the zone, not the resort's report. Today's is what the gauge measured.</p>
+      <p class="note morn-note"><b>Morning total</b> is the number to check before skiing: new snow in the 24 hours up to 5 am, overnight included, the time and window of a morning snow report. Forecast days here run 5 am to 5 am, not midnight to midnight, so a morning total is the same snow as the day before it: the night's snow is already in. It is this forecast's figure for the zone, not the resort's report. Today's is what the gauge measured.</p>
       <p class="note">Below it, inches of new snow each day from 5 am to 5 am. A day with at least a 1 in 5 chance of snow shows the range to expect if it snows, with the chance beside it; below that it reads 0. "Up to" is the 1-in-10 high end. ${tenOK() ? 'Tap a day to see it on the map. ' : ''}Updated ${hour(outlook.updated)} from the ensemble run of ${hour(outlook.ensemble_run)}${outlook.blend_run ? ` and the National Blend of ${hour(outlook.blend_run)}` : ''}; new runs arrive four times a day, the next about ${hour(outlook.next_update)}.${state.zone ? '' : ' Pick a zone on the Zones tab to see it here.'}</p>
       ${chart}${blocks}<div class="key" style="margin-top:10px"><span><i class="t"></i>10th to 90th percentile range</span><span>change is since a day ago</span></div>${all}${rows}
       <h3>How far to trust it</h3>
