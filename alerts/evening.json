@@ -1,0 +1,36 @@
+{
+ "kind": "evening",
+ "time": "2026-11-24T19:26",
+ "zone": "Mid-Vail / Mountaintop",
+ "thresholds": {
+  "likely_in": 4.0,
+  "high_end_in": 8.0
+ },
+ "fire": false,
+ "available": true,
+ "reasons": [],
+ "title": "Vail Mountain: 0 in likely by 5 am (0 to 2.4)",
+ "lines": [
+  "Mid-Vail / Mountaintop: 0 in likely in the 24 hours to 5 am, range 0 to 2.4.",
+  "From this morning's model run; the 5 pm run is not out yet.",
+  "First chair: China Bowl (1.5 in), Siberia Bowl (1.5 in), Mid-Vail / Mountaintop (1.4 in) by the high end.",
+  "Big days are under-called by the likely number: read the high end."
+ ],
+ "basis": "12z",
+ "run": "2026-11-24T12:00:00",
+ "measured_today": null,
+ "tonight": null,
+ "by_5am": [
+  0.0,
+  0.0,
+  2.4
+ ],
+ "tomorrow": [
+  0.0,
+  null,
+  null
+ ],
+ "ratio": 18.6,
+ "per_inch": null,
+ "per_inch_tomorrow": null
+}
