@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- launchd job: the evening powder alert. A template: deploy/install_schedule.sh installs it.
+     9:45 pm Mountain time, just after the 5 pm (00z) HRRR run reaches the public copy.
+     Install all four with deploy/install_schedule.sh, which fills in the paths.
+     The Mac's clock must be on Mountain time, or shift the hour. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vailsnow.evening</string>
+  <key>WorkingDirectory</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster</string>
+  <key>ProgramArguments</key>
+  <array><string>/opt/homebrew/bin/uv</string><string>run</string><string>vailsnow</string><string>alert</string><string>evening</string></array>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>45</integer></dict>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>StandardOutPath</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster/data/logs/evening.log</string>
+  <key>StandardErrorPath</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster/data/logs/evening.log</string>
+</dict>
+</plist>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- launchd job: refresh the 10-day outlook after each of the four daily GEFS runs. A template: deploy/install_schedule.sh installs it.
+     The 10-day files are complete about 5.5 hours after each run: 10:40 pm, 4:40 am, 10:40 am and 4:40 pm Mountain Standard Time for the files this needs; the job runs at :55.
+     Install all four with deploy/install_schedule.sh, which fills in the paths.
+     The Mac's clock must be on Mountain time, or shift the hours. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vailsnow.outlook</string>
+  <key>WorkingDirectory</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster</string>
+  <key>ProgramArguments</key>
+  <array><string>/opt/homebrew/bin/uv</string><string>run</string><string>vailsnow</string><string>outlook</string></array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>55</integer></dict>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>55</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>55</integer></dict>
+    <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>55</integer></dict>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>StandardOutPath</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster/data/logs/outlook.log</string>
+  <key>StandardErrorPath</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster/data/logs/outlook.log</string>
+</dict>
+</plist>

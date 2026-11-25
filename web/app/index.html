@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snow forecast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link href="app.css?v=20261125a" rel="stylesheet">
+</head>
+<body>
+<div id="map" aria-label="Snow forecast map"></div>
+
+<header id="bar">
+  <div class="group" id="windows" role="group" aria-label="Time window"></div>
+  <div class="group" id="layers" role="group" aria-label="Layer"></div>
+  <div class="group" id="range" role="group" aria-label="Range"></div>
+</header>
+
+<div id="scrub" hidden>
+  <button id="play" aria-label="Play">&#9654;</button>
+  <input id="slider" type="range" min="0" max="11" step="1" value="11" aria-label="Hours into the forecast">
+  <output id="scrubLabel"></output>
+</div>
+
+<div id="daybar" class="group" role="group" aria-label="Day" hidden></div>
+
+<aside id="panel">
+  <button id="grip" aria-label="Expand or collapse the panel"><span></span></button>
+  <div id="masthead">
+    <div class="eyebrow"><span id="issued">Loading</span><select id="runs" aria-label="Forecast run"></select></div>
+    <h1><span id="headNum">--</span><span class="unit">in</span></h1>
+    <p id="headSub"></p>
+    <div id="flag" hidden></div>
+  </div>
+  <nav id="tabs" role="tablist">
+    <button role="tab" data-tab="zones" aria-selected="true">Zones</button>
+    <button role="tab" data-tab="ten" aria-selected="false">10 day</button>
+    <button role="tab" data-tab="why" aria-selected="false">Why</button>
+    <button role="tab" data-tab="point" aria-selected="false">Point</button>
+    <button role="tab" data-tab="score" aria-selected="false">Score</button>
+  </nav>
+  <section id="tab-zones" class="tab"></section>
+  <section id="tab-ten" class="tab" hidden></section>
+  <section id="tab-why" class="tab" hidden></section>
+  <section id="tab-point" class="tab" hidden><p class="hint">Tap anywhere inside the ski area for a point forecast.</p></section>
+  <section id="tab-score" class="tab" hidden></section>
+  <footer id="fine">Independent hobby project. Not affiliated with Vail Resorts. Not an official forecast or avalanche advice.</footer>
+</aside>
+
+<div id="corner">
+  <div id="mapctl">
+    <button id="basemap" aria-pressed="false">Satellite</button>
+    <button id="three" aria-pressed="false">3D</button>
+    <button id="overlay" aria-pressed="true">Lifts &amp; trails</button>
+  </div>
+  <div id="legend" aria-label="Legend"></div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js?v=20261125a"></script>
+</body>
+</html>

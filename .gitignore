@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+data/
+phase0/probes/
+.pytest_cache/
+web/check/layers/
+web/check/data/
+web/app/data/
+.claude/
+vail-snow-forecast-prompt.md
+data-*/
+*.tar.gz
+public/
+.DS_Store

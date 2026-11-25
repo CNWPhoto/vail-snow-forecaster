@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vail terrain and zones: Phase 1 check</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root { --ink:#17202b; --muted:#5b6876; --line:#d6dce3; --panel:#ffffff; --accent:#1f5fae; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font:14px/1.4 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color:var(--ink); }
+  #app { display:grid; grid-template-columns: 340px 1fr; height:100%; }
+  #side { overflow:auto; background:var(--panel); border-right:1px solid var(--line); padding:14px 16px 24px; }
+  #map { position:relative; min-height:0; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:18px 0 6px; }
+  p.note { color:var(--muted); margin:4px 0 0; font-size:12.5px; }
+  label { display:flex; align-items:center; gap:8px; padding:3px 0; cursor:pointer; }
+  input[type=range] { width:100%; }
+  .legend { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-top:6px; }
+  .legend .bar { flex:1; height:10px; border-radius:3px; border:1px solid var(--line); }
+  .sw { display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:6px; vertical-align:-1px; border:1px solid rgba(0,0,0,.2); }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; font-variant-numeric:tabular-nums; }
+  th, td { text-align:right; padding:3px 4px; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--muted); font-weight:600; }
+  #detail { border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-top:8px; background:#f7f9fb; }
+  #detail h3 { margin:0 0 4px; font-size:15px; }
+  .kv { display:grid; grid-template-columns: 1fr auto; gap:2px 10px; font-variant-numeric:tabular-nums; }
+  .kv span:nth-child(odd) { color:var(--muted); }
+  .zlabel { font:600 11.5px/1.1 -apple-system, "Segoe UI", sans-serif; color:#111; text-align:center; pointer-events:none;
+            text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; white-space:nowrap; }
+  .zlist button { all:unset; cursor:pointer; display:block; padding:2px 0; width:100%; }
+  .zlist button:hover { color:var(--accent); }
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; }
+    #map { order:-1; }
+    #side { border-right:0; border-top:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <h1>Vail terrain and zones</h1>
+    <p class="note">Phase 1 check map. Zone edges are a first draft from mapped trails and ridgelines. Tell me what is wrong and I will move it.</p>
+
+    <h2>Base map</h2>
+    <label><input type="radio" name="base" value="hillshade" checked> Shaded relief (from the lidar grid)</label>
+    <label><input type="radio" name="base" value="usgs_topo"> USGS topo</label>
+    <label><input type="radio" name="base" value="usgs_img"> USGS aerial imagery</label>
+
+    <h2>Terrain layer</h2>
+    <div id="overlays"></div>
+    <div class="legend" id="legend"></div>
+    <input id="opacity" type="range" min="0" max="100" value="75" aria-label="Terrain layer opacity">
+
+    <h2>Lines</h2>
+    <label><input type="checkbox" data-layers="zones-fill,zones-line" checked> Zones</label>
+    <label><input type="checkbox" data-layers="bands-line"> Elevation-band splits inside zones</label>
+    <label><input type="checkbox" data-layers="trails" checked> Trails <span class="note" style="margin:0">(white seeds a zone, yellow does not)</span></label>
+    <label><input type="checkbox" data-layers="lifts" checked> Lifts</label>
+    <label><input type="checkbox" data-layers="ridges"> Detected ridgelines</label>
+    <label><input type="checkbox" data-layers="points" checked> Stations and reference points</label>
+
+    <h2>Selected</h2>
+    <div id="detail">Click a zone, trail or point on the map.</div>
+
+    <h2>Zones</h2>
+    <div class="zlist" id="zlist"></div>
+
+    <h2>Whole mountain</h2>
+    <div id="whole"></div>
+    <p class="note" id="built"></p>
+  </aside>
+  <div id="map"></div>
+</div>
+<script>
+const OVERLAYS = [
+  {id:'none', label:'None'},
+  {id:'bands', label:'Elevation bands', legend:null},
+  {id:'slope', label:'Slope', legend:['0°','50°','linear-gradient(90deg,#ffffe5,#fee391,#fe9929,#cc4c02,#662506)']},
+  {id:'aspect', label:'Aspect (which way it faces)', legend:['N · E','S · W · N','linear-gradient(90deg,#2c7bb6,#abd9e9,#d7191c,#fdae61,#2c7bb6)']},
+  {id:'canopy', label:'Tree canopy cover (lidar)', legend:['open','dense','linear-gradient(90deg,#f7fcf5,#a1d99b,#238b45,#00441b)']},
+  {id:'sx_nw', label:'Wind shelter, northwest wind', legend:['exposed','sheltered','linear-gradient(90deg,#8c510a,#dfc27d,#f5f5f5,#80cdc1,#01665e)']},
+  {id:'sx_w', label:'Wind shelter, west wind', legend:['exposed','sheltered','linear-gradient(90deg,#8c510a,#dfc27d,#f5f5f5,#80cdc1,#01665e)']},
+  {id:'sky_view', label:'Sky view (enclosed to open)', legend:['enclosed','open','linear-gradient(90deg,#253494,#7fcdbb,#ffffd9)']},
+];
+const fmt = n => n == null ? 'n/a' : Number(n).toLocaleString();
+const pct = x => x == null ? 'n/a' : Math.round(x * 100) + '%';
+const get = f => fetch(f).then(r => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.json(); });
+
+Promise.all(['manifest', 'zones', 'zone_bands', 'trails', 'lifts', 'points', 'boundary', 'zone_stats']
+  .map(n => get(`data/${n}${n === 'manifest' || n === 'zone_stats' ? '.json' : '.geojson'}`)))
+.then(([manifest, zones, bands, trails, lifts, points, boundary, stats]) => {
+  const usgs = n => ({type:'raster', tileSize:256, maxzoom:16, attribution:'USGS The National Map',
+    tiles:[`https://basemap.nationalmap.gov/arcgis/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`]});
+  const map = new maplibregl.Map({
+    container:'map', center:[-106.355, 39.602], zoom:11.6, maxZoom:17, attributionControl:{compact:true},
+    style:{version:8, sources:{usgs_topo:usgs('USGSTopo'), usgs_img:usgs('USGSImageryOnly')},
+      layers:[{id:'bg', type:'background', paint:{'background-color':'#e8ebef'}},
+              {id:'usgs_topo', type:'raster', source:'usgs_topo', layout:{visibility:'none'}},
+              {id:'usgs_img', type:'raster', source:'usgs_img', layout:{visibility:'none'}}]}
+  });
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  map.addControl(new maplibregl.ScaleControl({unit:'imperial'}));
+  window._map = map;
+  new ResizeObserver(() => map.resize()).observe(document.getElementById('map'));
+
+  map.once('style.load', () => {
+    const img = name => ({type:'image', url:`layers/${name}.png`, coordinates:manifest.corners});
+    map.addSource('hillshade', img('hillshade'));
+    map.addLayer({id:'hillshade', type:'raster', source:'hillshade', paint:{'raster-fade-duration':0}});
+    map.addSource('overlay', img('bands'));
+    map.addLayer({id:'overlay', type:'raster', source:'overlay', layout:{visibility:'none'}, paint:{'raster-opacity':0.75, 'raster-fade-duration':0}});
+    map.addSource('ridges', img('ridges'));
+    map.addLayer({id:'ridges', type:'raster', source:'ridges', layout:{visibility:'none'}, paint:{'raster-opacity':0.8}});
+
+    for (const [id, data] of Object.entries({zones, bands, trails, lifts, points, boundary})) map.addSource(id, {type:'geojson', data});
+    map.addLayer({id:'boundary', type:'line', source:'boundary', paint:{'line-color':'#444', 'line-dasharray':[3, 2], 'line-width':1}});
+    map.addLayer({id:'zones-fill', type:'fill', source:'zones', paint:{'fill-color':['get', 'colour'], 'fill-opacity':0.32}});
+    map.addLayer({id:'bands-line', type:'line', source:'bands', layout:{visibility:'none'}, paint:{'line-color':'#fff', 'line-width':0.8, 'line-dasharray':[2, 2]}});
+    map.addLayer({id:'zones-line', type:'line', source:'zones', paint:{'line-color':['get', 'colour'], 'line-width':2.2}});
+    map.addLayer({id:'trails', type:'line', source:'trails', paint:{
+      'line-color':['case', ['has', 'seeds'], '#ffffff', '#ffd400'], 'line-width':['interpolate', ['linear'], ['zoom'], 11, 0.6, 15, 2]}});
+    map.addLayer({id:'lifts', type:'line', source:'lifts', paint:{'line-color':'#c4161c', 'line-width':['interpolate', ['linear'], ['zoom'], 11, 1.2, 15, 3]}});
+    map.addLayer({id:'points', type:'circle', source:'points', paint:{'circle-radius':6, 'circle-color':['match', ['get', 'kind'], 'snotel', '#0b6e4f', '#1f5fae'],
+      'circle-stroke-color':'#fff', 'circle-stroke-width':2}});
+
+    // zone labels as HTML markers (no font server needed)
+    const centre = f => { const b = new maplibregl.LngLatBounds();
+      const rings = f.geometry.type === 'Polygon' ? [f.geometry.coordinates[0]] : f.geometry.coordinates.map(p => p[0]);
+      rings.sort((a, c) => c.length - a.length)[0].forEach(p => b.extend(p)); return b; };
+    const labels = zones.features.map(f => {
+      const el = document.createElement('div'); el.className = 'zlabel'; el.textContent = f.properties.name;
+      return new maplibregl.Marker({element:el}).setLngLat(centre(f).getCenter()).addTo(map);
+    });
+
+    // controls
+    document.querySelectorAll('input[name=base]').forEach(r => r.addEventListener('change', () => {
+      for (const id of ['hillshade', 'usgs_topo', 'usgs_img']) map.setLayoutProperty(id, 'visibility', id === r.value ? 'visible' : 'none');
+    }));
+    const box = document.getElementById('overlays'), legend = document.getElementById('legend');
+    const setOverlay = o => {
+      if (o.id === 'none') { map.setLayoutProperty('overlay', 'visibility', 'none'); legend.innerHTML = ''; return; }
+      map.getSource('overlay').updateImage({url:`layers/${o.id}.png`, coordinates:manifest.corners});
+      map.setLayoutProperty('overlay', 'visibility', 'visible');
+      legend.innerHTML = o.id === 'bands'
+        ? '<div>' + manifest.bands.map(b => `<div><span class="sw" style="background:${b.colour}"></span>${b.label}</div>`).join('') + '</div>'
+        : `<span>${o.legend[0]}</span><span class="bar" style="background:${o.legend[2]}"></span><span>${o.legend[1]}</span>`;
+    };
+    OVERLAYS.forEach((o, i) => {
+      const l = document.createElement('label');
+      l.innerHTML = `<input type="radio" name="overlay" value="${o.id}" ${i === 0 ? 'checked' : ''}> ${o.label}`;
+      l.querySelector('input').addEventListener('change', () => setOverlay(o));
+      box.appendChild(l);
+    });
+    document.getElementById('opacity').addEventListener('input', e => map.setPaintProperty('overlay', 'raster-opacity', e.target.value / 100));
+    document.querySelectorAll('input[data-layers]').forEach(c => c.addEventListener('change', () => {
+      c.dataset.layers.split(',').forEach(id => map.setLayoutProperty(id, 'visibility', c.checked ? 'visible' : 'none'));
+      if (c.dataset.layers.startsWith('zones')) labels.forEach(m => m.getElement().style.display = c.checked ? '' : 'none');
+    }));
+
+    // detail panel
+    const detail = document.getElementById('detail');
+    const showZone = id => {
+      const z = stats.zones[id], a = z.aspect_share;
+      const rows = Object.entries(z.bands).filter(([, b]) => b.cells).map(([bid, b]) => {
+        const lab = manifest.bands[['base', 'lower', 'upper', 'top'].indexOf(bid)].label;
+        return `<tr><td>${lab}</td><td>${fmt(Math.round(b.acres))}</td><td>${b.slope_mean_deg}°</td><td>${pct(b.canopy_cover)}</td><td>${pct(b.sx_nw_exposed_share)}</td></tr>`;
+      }).join('');
+      detail.innerHTML = `<h3>${z.name}</h3><div class="note" style="margin:0 0 6px">${z.group}</div>
+        <div class="kv"><span>Area</span><span>${fmt(Math.round(z.acres))} acres</span>
+        <span>Elevation</span><span>${fmt(z.elev_min_ft)} to ${fmt(z.elev_max_ft)} ft</span>
+        <span>Mean slope</span><span>${z.slope_mean_deg}°</span>
+        <span>Faces N / E / S / W</span><span>${pct(a.north)} / ${pct(a.east)} / ${pct(a.south)} / ${pct(a.west)}</span>
+        <span>Tree canopy</span><span>${pct(z.canopy_cover)}</span>
+        <span>Exposed to NW wind</span><span>${pct(z.sx_nw_exposed_share)}</span>
+        <span>Exposed to W wind</span><span>${pct(z.sx_w_exposed_share)}</span></div>
+        <table style="margin-top:8px"><tr><th>Band</th><th>Acres</th><th>Slope</th><th>Trees</th><th>NW exp.</th></tr>${rows}</table>`;
+    };
+    map.on('click', e => {
+      const pad = 5, hit = map.queryRenderedFeatures([[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]], {layers:['points', 'trails', 'zones-fill'].filter(l => map.getLayoutProperty(l, 'visibility') !== 'none')});
+      if (!hit.length) return;
+      const f = hit[0], p = f.properties;
+      if (f.layer.id === 'zones-fill') return showZone(p.id);
+      if (f.layer.id === 'trails') {
+        const zn = id => id && stats.zones[id] ? stats.zones[id].name : 'none';
+        detail.innerHTML = `<h3>${p.name || 'Unnamed trail'}</h3><div class="kv"><span>Lies in zone</span><span>${zn(p.zone)}</span>
+          <span>Seeds a zone</span><span>${p.seeds ? zn(p.seeds) : 'no'}</span><span>Difficulty</span><span>${p.difficulty || 'n/a'}</span></div>`;
+      } else {
+        detail.innerHTML = `<h3>${p.name}</h3><div class="kv"><span>Listed elevation</span><span>${fmt(p.elev_ft)} ft</span>
+          <span>Grid elevation</span><span>${p.grid_elev_ft ? fmt(p.grid_elev_ft) + ' ft' : 'off the fine grid'}</span>
+          <span>Zone</span><span>${p.zone && stats.zones[p.zone] ? stats.zones[p.zone].name : 'outside zones'}</span>
+          <span>Slope, facing</span><span>${p.slope_deg ?? 'n/a'}°, ${p.aspect_deg ?? 'n/a'}°</span>
+          <span>NW wind shelter</span><span>${p.sx_nw_deg ?? 'n/a'}°</span></div>`;
+      }
+    });
+    ['zones-fill', 'trails', 'points'].forEach(l => { map.on('mouseenter', l, () => map.getCanvas().style.cursor = 'pointer'); map.on('mouseleave', l, () => map.getCanvas().style.cursor = ''); });
+
+    // zone list and totals
+    const zl = document.getElementById('zlist');
+    let group = '';
+    zones.features.forEach(f => {
+      const p = f.properties;
+      if (p.group !== group) { group = p.group; const h = document.createElement('div'); h.className = 'note'; h.style.margin = '6px 0 2px'; h.textContent = group; zl.appendChild(h); }
+      const b = document.createElement('button');
+      b.innerHTML = `<span class="sw" style="background:${p.colour}"></span>${p.name} <span class="note" style="margin:0">${fmt(Math.round(p.acres))} ac</span>`;
+      b.addEventListener('click', () => { showZone(p.id); map.fitBounds(centre(f), {padding:60, maxZoom:14}); });
+      zl.appendChild(b);
+    });
+    const row = (n, s) => `<tr><td>${n}</td><td>${fmt(Math.round(s.acres))}</td><td>${pct(s.aspect_share.north)}</td><td>${pct(s.aspect_share.east)}</td><td>${pct(s.aspect_share.south)}</td><td>${pct(s.aspect_share.west)}</td></tr>`;
+    document.getElementById('whole').innerHTML = `<table><tr><th></th><th>Acres</th><th>N</th><th>E</th><th>S</th><th>W</th></tr>
+      ${Object.entries(stats.groups).map(([g, s]) => row(g, s)).join('')}${row('All zones', stats.whole_resort)}</table>
+      <p class="note">Acres here count all ground within 150 m of a mapped trail or lift, trees included, so they run well above the resort's published skiable acres.</p>`;
+    document.getElementById('built').textContent = `Built ${manifest.built} · ${manifest.cell_m} m grid · Elevation and canopy: USGS 3DEP lidar. Trails, lifts, boundary: © OpenStreetMap contributors.`;
+  });
+}).catch(err => { document.getElementById('detail').textContent = 'Could not load map data: ' + err.message + '. Run "uv run vailsnow terrain" first.'; });
+</script>
+</body>
+</html>

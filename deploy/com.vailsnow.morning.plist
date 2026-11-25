@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- launchd job: the 5 am powder alert (what the gauge measured overnight). A template: deploy/install_schedule.sh installs it.
+     5:05 am Mountain time.
+     Install all four with deploy/install_schedule.sh, which fills in the paths.
+     The Mac's clock must be on Mountain time, or shift the hour. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vailsnow.morning</string>
+  <key>WorkingDirectory</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster</string>
+  <key>ProgramArguments</key>
+  <array><string>/opt/homebrew/bin/uv</string><string>run</string><string>vailsnow</string><string>alert</string><string>morning</string></array>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>5</integer></dict>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>StandardOutPath</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster/data/logs/morning.log</string>
+  <key>StandardErrorPath</key><string>/PATH/TO/Vail Pinpoint Snow Forecaster/data/logs/morning.log</string>
+</dict>
+</plist>
