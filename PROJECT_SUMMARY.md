@@ -11,7 +11,7 @@ A snowfall forecast for Vail Mountain that works at the scale of a zone or a sin
 | Code | About 8,800 lines of Python, 840 of front end, 198 tests |
 | Data | 58 GB, all free and public: SNOTEL, HRRR, GFS, GEFS, National Blend, NWS grids, ERA5, PRISM, SNODAS, USGS lidar, OpenStreetMap, airport stations |
 | Runs | Unattended on GitHub Actions, free for a public repository: map once a day, 10-day outlook five times, alerts at 9:45 pm and 5:05 am. Nothing runs at home |
-| Live | https://cnwphoto.github.io/vail-snow-forecaster/ and, once the pull request is merged, build 005 on purposebuilt.studio |
+| Live | https://cnwphoto.github.io/vail-snow-forecaster/ and as build 005 on https://purposebuilt.studio |
 | Not done | Alerts go to the map banner and a log, not a phone |
 
 ## The most striking details
