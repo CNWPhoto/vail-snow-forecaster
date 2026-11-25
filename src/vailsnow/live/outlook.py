@@ -28,7 +28,8 @@ from .forecast import combine_ranges, compass, density_word
 DAYS = 10
 CYCLE_H = 6
 SNOW_THRESHOLDS_IN = (1.0, 3.0, 6.0)
-SHOW_RANGE_FROM = 0.30       # a day with at least this chance of an inch shows the range expected if it snows; below it, 0
+SHOW_RANGE_FROM = 0.20       # a day with at least a 1-in-5 chance of an inch shows the range expected if it snows; below it, 0.
+                             # A judgment call, lowered from 0.30 on 2026-11-25: a 27% day was reading 0 beside a 1 to 4.5 in range
 DRAW_FROM_IN = 0.5           # an expected amount under half an inch is not drawn: it means "probably nothing"
 LIVE_WITHIN = pd.Timedelta(hours=12)
 

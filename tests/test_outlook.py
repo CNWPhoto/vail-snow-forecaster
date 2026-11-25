@@ -182,5 +182,7 @@ def test_a_day_leads_with_snow_if_it_snows_or_with_zero():
     assert maybe[2] and maybe[0] >= inch and maybe[0] < maybe[1] <= 0.35      # uncertain: the range if it snows, never from zero
     unlikely = outlook.lead_range(levels, [0.0, 0.0, 0.0, 0.01, 0.10], 0.15, inch)
     assert unlikely == (0.0, 0.0, False)                              # a low chance reads zero
+    outside = outlook.lead_range(levels, [0.0, 0.0, 0.0, 0.01, 0.27], 0.27, inch)
+    assert outside[2] and inch <= outside[0] < outside[1] == 0.27       # better than 1 in 5: from an inch or more up to the high end, not zero
     edge = outlook.lead_range(levels, [0.0, 0.0, 0.0, 0.0, 0.0], 0.05, inch)
     assert edge == (0.0, 0.0, False)

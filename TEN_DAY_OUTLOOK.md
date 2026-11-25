@@ -27,7 +27,7 @@ The 10-day rows and the map now lead with a likely range to the half inch (the 2
 ## How a day is shown (final form, 2026-11-24 night)
 
 - **A firm storm** shows its likely range (the 25th to 75th percentile).
-- **A day with a 30% or better chance of an inch, but no certainty,** shows the range to expect if it snows: the middle half of the snowy outcomes, never starting below an inch, with the chance beside it. Saturday Nov 28 reads "2.5 to 5.5 in if it snows, 64% chance".
+- **A day with a 20% or better chance of an inch, but no certainty,** (30% until 2026-11-25) shows the range to expect if it snows: the middle half of the snowy outcomes, never starting below an inch, with the chance beside it. Saturday Nov 28 reads "2.5 to 5.5 in if it snows, 64% chance".
 - **A day with a lower chance reads 0.** As a storm fades in later runs, its day drops to 0 on its own.
 - **Days 4 to 10 now carry wind loading** from the ensemble's average wind near 600 mb, turned to ridge level the same way as days 1 to 3. Where ensemble members disagree on direction the average wind is weak, so loading fades as the forecast gets less sure.
 - The February 2025 replay was removed from the app. The top of the page shows when the data was last updated, not the model run time.
