@@ -30,6 +30,7 @@ CYCLE_H = 6
 SNOW_THRESHOLDS_IN = (1.0, 3.0, 6.0)
 SHOW_RANGE_FROM = 0.20       # a day with at least a 1-in-5 chance of an inch shows the range expected if it snows; below it, 0.
                              # A judgment call, lowered from 0.30 on 2026-11-25: a 27% day was reading 0 beside a 1 to 4.5 in range
+AFTER_MIDNIGHT_H = 5         # a forecast window ends at 5 am (12 UTC): its last five hours belong to the next calendar day
 DRAW_FROM_IN = 0.5           # an expected amount under half an inch is not drawn: it means "probably nothing"
 LIVE_WITHIN = pd.Timedelta(hours=12)
 
@@ -70,6 +71,20 @@ def if_it_snows(levels: list[float], values: list[float], chance_of_snow: float)
     if chance_of_snow < 0.1:
         return None
     return float(np.interp(1.0 - chance_of_snow / 2.0, levels, np.maximum.accumulate(np.asarray(values, float))))
+
+
+def late_share(amounts) -> float:
+    """Share of a 5 am to 5 am window's precipitation that falls after midnight, from amounts in
+    equal steps through the window (hourly, or six-hourly, where the last step is split evenly).
+    With nothing to go on, or a dry window, the five hours count for five twenty-fourths."""
+    a = np.asarray(list(amounts), float)
+    even = AFTER_MIDNIGHT_H / 24.0
+    if a.size == 0 or not np.isfinite(a).all() or a.sum() < 1e-4:
+        return even
+    step = 24.0 / a.size
+    ends = step * (np.arange(a.size) + 1)
+    inside = np.clip(ends - np.maximum(ends - step, 24.0 - AFTER_MIDNIGHT_H), 0.0, step) / step      # part of each step after midnight
+    return float(np.clip((np.clip(a, 0, None) * inside).sum() / np.clip(a, 0, None).sum(), 0.0, 1.0))
 
 
 def lead_range(levels: list[float], water: list[float], chance_of_snow: float, inch_of_snow: float) -> tuple[float, float, bool]:
@@ -240,7 +255,10 @@ def ensemble_days(resort: Resort, run: pd.Timestamp, starts: list[pd.Timestamp])
         b0 = int((start - blend_run) / pd.Timedelta(hours=1)) if nb is not None else -1
         keys = [f"asnow_{b0 + k:03d}" for k in (6, 12, 18, 24)]
         blend_snow = float(sum(nb[k][nr, nc] for k in keys) * 39.3701) if nb is not None and all(k in nb for k in keys) else None
-        out[start] = {**p, "lead_h": first + 24, "lead_day": f["lead_day"], "t700": f["t700"], "raw": f["gefs_mean"], "blend": f.get("nbm_qpf", np.nan), "blend_snow_in": blend_snow,
+        six = [f"apcp_{b0 + k:03d}" for k in (6, 12, 18, 24)]
+        gefs6 = [f"mean_{first + k:03d}" for k in (6, 12, 18, 24)]
+        timing = [float(nb[k][nr, nc]) for k in six] if nb is not None and all(k in nb for k in six) else [float(d[k][r, c]) for k in gefs6] if all(k in d for k in gefs6) else []
+        out[start] = {**p, "late": late_share(timing), "lead_h": first + 24, "lead_day": f["lead_day"], "t700": f["t700"], "raw": f["gefs_mean"], "blend": f.get("nbm_qpf", np.nan), "blend_snow_in": blend_snow,
                       "blend_run": blend_run.isoformat() if nb is not None else None, "wind": day_wind(winds, r, c, first),
                       "per_inch": gauge_per_inch(fit, resort, f["t700"])}
     return out
@@ -287,7 +305,9 @@ def main_forecast(starts: list[pd.Timestamp]) -> dict[pd.Timestamp, dict]:
         for day in meta["days"]:
             start = pd.Timestamp(day["start"]) if day.get("available") else None
             if start in starts and start not in out and all("days" in z for z in zones):
-                out[start] = {"run": meta["run"], "day": day["day"], "water": day["water_in"], "quality": day["quality"], "ratio": day["snow_to_liquid_mid"],
+                curve = meta.get("hourly_curve_in") or []
+                hours = np.diff(curve[24 * (day["day"] - 1): 24 * day["day"] + 1]) if len(curve) > 24 * day["day"] else []
+                out[start] = {"run": meta["run"], "day": day["day"], "water": day["water_in"], "quality": day["quality"], "ratio": day["snow_to_liquid_mid"], "late": late_share(hours),
                               "zones": {z["id"]: z["days"][day["day"] - 1] for z in zones}}
     return out
 
@@ -314,9 +334,81 @@ def morning_measured(resort: Resort, five_am: pd.Timestamp, fallback_ratio: floa
     if per_inch is None and fallback_ratio:
         per_inch = float(fallback_ratio)
     site = scorecard.target(resort)
+    late = alerts.measured(rec, five_am - pd.Timedelta(hours=AFTER_MIDNIGHT_H), five_am)
     return {"at": five_am.isoformat(), "site": site["name"], "elev_ft": site["elev_ft"], "water_in": got["water_in"],
             "snow_in": None if per_inch is None else round(got["water_in"] * per_inch, 1), "depth_change_in": got["depth_change_in"],
-            "hours_reported": got["hours_reported"], "hours": got["hours"]}
+            "hours_reported": got["hours_reported"], "hours": got["hours"],
+            "since_midnight_water_in": late["water_in"], "since_midnight_snow_in": None if per_inch is None else round(late["water_in"] * per_inch, 1)}
+
+
+QUANTILES = ("q10", "q25", "q50", "q75", "q90")
+LEVELS5 = [0.1, 0.25, 0.5, 0.75, 0.9]
+
+
+def calendar_days(days: list[dict], buckets: dict[int, dict], starts: list[pd.Timestamp], measured: dict | None, head: str) -> tuple[list[dict], dict[int, dict]]:
+    """The forecast re-cut from 5 am to 5 am windows into calendar days, midnight to midnight.
+
+    The models forecast 5 am to 5 am, because that is how the gauge record they learned from is
+    cut. A calendar day is the last five hours of one window plus the first nineteen of the next,
+    so each window is split by when its precipitation is forecast to fall (`late`). Quantiles of
+    the two parts are added level by level, which treats a wet end to one window and a wet start
+    to the next as going together: they are usually the same storm. The first day's hours before
+    5 am have already happened and come from the gauge.
+
+    Each row also carries the morning total: the whole window ending at 5 am that day."""
+    rows, fields = [], {}
+    for k, start in enumerate(starts, 1):
+        row = {"day": k, "start": (start - pd.Timedelta(hours=AFTER_MIDNIGHT_H)).isoformat(), "available": False}
+        b, prev = buckets.get(k), buckets.get(k - 1)
+        if b is None or (k > 1 and prev is None) or b["conv"].get(head, 0) <= 0:
+            rows.append(row)
+            continue
+        keep = 1.0 - b["late"]                                   # share of this window that falls before midnight
+        head_c = b["conv"][head]
+        if k == 1:                                                # midnight to 5 am today: measured, not forecast
+            got = (measured or {}).get("since_midnight_snow_in") or 0.0
+            got_w = (measured or {}).get("since_midnight_water_in") or 0.0
+            before = {q: got for q in (*QUANTILES, "mean")}
+            before_w = {q: got_w for q in (*QUANTILES, "mean")}
+            before_zone = {z: got * c / head_c for z, c in b["conv"].items()}
+            before_field = {q: got * b["pi"] / head_c for q in (*QUANTILES, "mean")}
+        else:
+            before = {q: prev["late"] * prev["w"][q] * prev["conv"][head] for q in (*QUANTILES, "mean")}
+            before_w = {q: prev["late"] * prev["w"][q] for q in (*QUANTILES, "mean")}
+            before_zone = {z: prev["late"] * prev["w"]["mean"] * prev["conv"].get(z, 0.0) for z in b["conv"]}
+            before_field = {q: prev["late"] * prev["w"][q] * prev["pi"] for q in (*QUANTILES, "mean")}
+        snow = {q: before[q] + keep * b["w"][q] * head_c for q in (*QUANTILES, "mean")}       # inches at the headline zone
+        water = {q: before_w[q] + keep * b["w"][q] for q in (*QUANTILES, "mean")}
+        mean = snow["mean"]
+        zone_mean = {z: before_zone[z] + keep * b["w"]["mean"] * c for z, c in b["conv"].items()}
+        scale = {z: (zone_mean[z] / mean if mean > 0.02 else c / head_c) for z, c in b["conv"].items()}      # each zone against the headline zone
+        values = [snow[q] for q in QUANTILES]
+        odds = {f"{int(t)}in": round(100 * chance(LEVELS5, values, t)) for t in SNOW_THRESHOLDS_IN}
+        lo, hi, conditional = lead_range(LEVELS5, values, odds["1in"] / 100.0, 1.0)
+        wet = if_it_snows(LEVELS5, values, odds["1in"] / 100.0)
+        src = days[k - 1]
+        row = {**src, "day": k, "start": row["start"], "window": "midnight to midnight", "after_midnight_share": round(b["late"], 2),
+               "zones": {z: [round(snow[q] * c, 1) for q in ("q50", "q10", "q90")] for z, c in scale.items()},
+               "mid": {z: [round(snow["q25"] * c, 1), round(snow["q75"] * c, 1)] for z, c in scale.items()},
+               "expected": {z: round(mean * c, 1) for z, c in scale.items()},
+               "water": [round(water[q], 2) for q in ("q50", "q10", "q90")], "expected_water": round(water["mean"], 2),
+               **{name: (round(snow[q] / mean, 3) if mean > 0.002 else 0.0) for name, q in (("low_ratio", "q10"), ("mid_ratio", "q50"), ("mid_lo_ratio", "q25"), ("mid_hi_ratio", "q75"), ("high_ratio", "q90"))},
+               "chance": odds, "lead": {z: [round(lo * c, 1), round(hi * c, 1)] for z, c in scale.items()}, "lead_if_snow": conditional,
+               "lead_lo_ratio": round(lo / mean, 3) if mean > 0.002 else 0.0, "lead_hi_ratio": round(hi / mean, 3) if mean > 0.002 else 0.0,
+               "if_it_snows": None if wet is None else {z: round(max(wet * c, 1.0), 1) for z, c in scale.items()}}
+        if k > 1 and src.get("blend_snow_in") is not None and days[k - 2].get("blend_snow_in") is not None:
+            row["blend_snow_in"] = round(prev["late"] * days[k - 2]["blend_snow_in"] + keep * src["blend_snow_in"], 1)
+        # the morning total: everything in the window that ends at 5 am this day
+        if k == 1:
+            row["morning"] = None if measured is None else {"measured": measured}
+        else:
+            p = days[k - 2]
+            row["morning"] = {"lead": p["lead"], "lead_if_snow": p["lead_if_snow"], "chance": p["chance"]["1in"], "expected": p["expected"]}
+        field = {q: before_field[q] + keep * b["w"][q] * b["pi"] for q in ("mean", "q10", "q50", "q90")}
+        pattern = field["mean"] / mean if mean > 0.02 else b["pi"] / head_c
+        fields[k] = {"expected": field["mean"], "likely": field["q50"], "low": field["q10"], "high": field["q90"], "water": water["mean"], "lead": 0.5 * (lo + hi) * pattern}
+        rows.append(row)
+    return rows, fields
 
 
 def cell_fields(resort: Resort) -> dict:
@@ -409,7 +501,7 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
         both = pd.concat([near[["run", "start", "mean", "q90"]], history[["run", "start", "mean", "q90"]] if len(history) else None])
         history = both.drop_duplicates(["run", "start"], keep="first").sort_values(["start", "run"]).reset_index(drop=True)
     levels5, keys5 = [0.1, 0.25, 0.5, 0.75, 0.9], ("q10", "q25", "q50", "q75", "q90")
-    days, fields = [], {}
+    days, fields, buckets = [], {}, {}
     for k, start in enumerate(starts, 1):
         row = {"day": k, "start": start.isoformat(), "available": False}
         if start in main:
@@ -458,6 +550,7 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
             row["if_it_snows"] = None if wet is None else {zid: round(max(wet * c, 1.0), 1) for zid, c in conv.items()}
             fields[k] = {"expected": mean * pi, "likely": float(w["q50"]) * pi, "low": float(w["q10"]) * pi, "high": float(w["q90"]) * pi, "water": mean,
                          "lead": 0.5 * (lo_w + hi_w) * pi}
+            buckets[k] = {"w": {q: float(w[q]) for q in (*QUANTILES, "mean")}, "conv": conv, "pi": pi, "late": float((main[start] if start in main else w).get("late", AFTER_MIDNIGHT_H / 24.0))}
             # how the call for this day has moved: every earlier forecast made for it, oldest first
             issued = pd.Timestamp(row["issued"])
             past = history[(history["start"] == start) & (history["run"] < issued)] if len(history) else history
@@ -508,10 +601,14 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
            "days": days, "blocks": blocks, "total": total, "map": bool(write and fields), "map_lead": bool(write and fields), "zones": [{"id": z["id"], "name": z["name"]} for z in zones],
            "skill": {k: {x: v[x] for x in ("skill_pct", "mae", "average_for_the_month_mae", "inside_10_90_pct", "n")} for k, v in skill["by_lead"].items()},
            "skill_blocks": skill["blocks"], "skill_seasons": f"{skill['seasons'][0] - 1} to {skill['seasons'][1]}", "wet_day_in": skill["wet_day_in"], "logged": logged}
+    # what is shown: calendar days, midnight to midnight, re-cut from the 5 am to 5 am windows above.
+    # The windows themselves are what the log and the scorecard keep, and each is the morning total of the day after it.
     first = next((d for d in days if d["available"]), None)
-    out["morning_measured"] = morning_measured(resort, starts[0], first.get("ratio") if first else None) if write else None
+    measured = morning_measured(resort, starts[0], first.get("ratio") if first else None) if write else None
+    shown, shown_fields = calendar_days(days, buckets, starts, measured, head)
+    out.update({"days": shown, "window": "midnight to midnight", "morning_measured": measured})
     if write:
-        write_map(resort, cells, fields, total_fields)
+        write_map(resort, cells, shown_fields, total_fields)
         path = web_data_dir() / "outlook.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(out, separators=(",", ":")))

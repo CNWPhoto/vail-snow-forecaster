@@ -109,7 +109,7 @@ def test_outlook_file_is_ten_consecutive_days():
         pytest.skip("no outlook built")
     o = json.loads(path.read_text())
     starts = [pd.Timestamp(d["start"]) for d in o["days"]]
-    assert len(starts) == 10 and all(b - a == pd.Timedelta(days=1) for a, b in zip(starts, starts[1:])) and starts[0].hour == 12
+    assert len(starts) == 10 and all(b - a == pd.Timedelta(days=1) for a, b in zip(starts, starts[1:])) and starts[0].hour == 7      # calendar days: midnight Mountain Standard Time
     for d in o["days"]:
         if d["available"]:
             likely, low, high = d["zones"][o["headline_zone"]][:3]
@@ -204,3 +204,43 @@ def test_the_first_morning_total_is_what_the_gauge_measured(monkeypatch):
         raise OSError("gauge service down")
     monkeypatch.setattr(scorecard, "gauge_record", broken)
     assert outlook.morning_measured(None, five_am) is None            # no reading: the line is left out, the build carries on
+
+
+def test_share_of_a_window_after_midnight():
+    assert outlook.late_share([0] * 19 + [1] * 5) == 1.0                 # hourly: everything in the last five hours
+    assert outlook.late_share([1] * 19 + [0] * 5) == 0.0
+    assert outlook.late_share([1, 1, 1, 3]) == pytest.approx(2.5 / 6)    # six-hourly: five sixths of the last step
+    assert outlook.late_share([]) == outlook.late_share([0, 0, 0, 0]) == pytest.approx(5 / 24)      # nothing to go on: even through the day
+
+
+def test_calendar_days_are_recut_from_the_5am_windows():
+    starts = [pd.Timestamp("2026-01-10T12:00:00") + pd.Timedelta(days=k) for k in range(3)]
+    dry = {q: 0.0 for q in (*outlook.QUANTILES, "mean")}
+    storm = {"q10": 0.1, "q25": 0.2, "q50": 0.3, "q75": 0.4, "q90": 0.5, "mean": 0.3}
+    conv, pi = {"a": 10.0, "b": 20.0}, np.array([10.0, 20.0])
+
+    def window(w, late):
+        return {"w": w, "conv": conv, "pi": pi, "late": late}
+
+    def bucket_row(k, w):
+        return {"day": k, "available": True, "source": "ensemble", "lead": {"a": [w["q25"] * 10, w["q75"] * 10], "b": [w["q25"] * 20, w["q75"] * 20]},
+                "lead_if_snow": False, "chance": {"1in": 95 if w["mean"] else 5}, "expected": {"a": w["mean"] * 10, "b": w["mean"] * 20}, "blend_snow_in": None}
+
+    # window 2 is a storm with 40% of it after midnight: that part belongs to calendar day 3
+    days = [bucket_row(1, dry), bucket_row(2, storm), bucket_row(3, dry)]
+    buckets = {1: window(dry, 5 / 24), 2: window(storm, 0.4), 3: window(dry, 5 / 24)}
+    measured = {"since_midnight_snow_in": 0.0, "since_midnight_water_in": 0.0, "snow_in": 0.0}
+    rows, fields = outlook.calendar_days(days, buckets, starts, measured, "a")
+    assert [pd.Timestamp(r["start"]).hour for r in rows] == [7, 7, 7] and all(r["available"] for r in rows)
+    assert rows[0]["expected"]["a"] == 0.0 and rows[1]["expected"]["a"] == pytest.approx(1.8) and rows[2]["expected"]["a"] == pytest.approx(1.2)
+    assert rows[1]["expected"]["a"] + rows[2]["expected"]["a"] == pytest.approx(3.0)        # nothing is lost or counted twice
+    assert rows[1]["expected"]["b"] == pytest.approx(3.6)                                   # zones keep their own conversion
+    assert fields[2]["expected"].tolist() == pytest.approx([1.8, 3.6]) and fields[3]["expected"].tolist() == pytest.approx([1.2, 2.4])
+    # the morning total is the whole window ending at 5 am: day 3's is the storm, day 2's is the dry window, day 1's is the gauge
+    assert rows[2]["morning"]["lead"]["a"] == [2.0, 4.0] and rows[1]["morning"]["lead"]["a"] == [0.0, 0.0] and "measured" in rows[0]["morning"]
+    # snow the gauge caught between midnight and 5 am counts toward the first calendar day
+    rows, _ = outlook.calendar_days(days, buckets, starts, {"since_midnight_snow_in": 2.0, "since_midnight_water_in": 0.15, "snow_in": 2.0}, "a")
+    assert rows[0]["expected"]["a"] == pytest.approx(2.0) and rows[0]["zones"]["a"][1] == pytest.approx(2.0)
+    # a missing window leaves the days that need it unavailable
+    rows, _ = outlook.calendar_days(days, {1: buckets[1], 3: buckets[3]}, starts, measured, "a")
+    assert [r["available"] for r in rows] == [True, False, False]
