@@ -107,6 +107,23 @@
     const w = z.windows[win()];
     return w.mid ? rng(...w.mid) : hf(w.fallen[0]);
   }
+  /* The morning total: new snow in the 24 hours before 5 am on a day, the time and window of a morning snow report.
+     For day 1 that morning has happened, so it is what the gauge measured; for later days it is the forecast for the day before. */
+  const pct = p => (p <= 5 ? 'under 5%' : p >= 95 ? 'over 95%' : p + '%');
+  function morningLine(d, zid) {
+    const i = outlook.days.indexOf(d), when = `5 am ${day(d.start, { weekday: 'short' })}`, tag = `<i>${when} &middot; morning total</i>`;
+    if (i === 0) {
+      const m = outlook.morning_measured;
+      if (!m || m.snow_in == null) return '';
+      const part = m.hours_reported < m.hours ? `, ${m.hours_reported} of ${m.hours} hours in` : '';
+      const depth = m.depth_change_in == null ? '' : `, depth sensor ${m.depth_change_in > 0 ? '+' : ''}${m.depth_change_in} in`;
+      return `<span class="m got">${tag}<b>${hf(m.snow_in)} in</b><em>measured at the mid-mountain gauge${depth}${part}</em></span>`;
+    }
+    const p = outlook.days[i - 1];
+    if (!p || !p.available) return '';
+    const r = (p.lead || p.mid)[zid], zero = half(r[1]) === 0;
+    return `<span class="m">${tag}<b>${rng(...r)} in</b><em>${zero ? '' : p.lead_if_snow ? 'if it snows, ' : 'likely, '}${pct(p.chance['1in'])} chance &middot; new in the 24 hours before</em></span>`;
+  }
   const tenWhen = long => (state.day ? day(outlook.days[state.day - 1].start, long ? { weekday: 'long', month: 'short', day: 'numeric' } : { weekday: 'short', month: 'short', day: 'numeric' }) : 'next 10 days');
 
   function setDaybar() {
@@ -229,7 +246,7 @@
       const mid = zones.find(z => z.id === outlook.headline_zone) || zones[0], t = tenZone(mid.id), d = state.day ? outlook.days[state.day - 1] : null;
       $('headNum').textContent = lead(mid);
       const what = { low: 'low end for new snow', fallen: d && d.lead_if_snow ? 'new snow if it snows' : 'new snow likely', high: 'high end for new snow' }[state.range];
-      $('headSub').innerHTML = `<b>${mid.name}</b>, ${what} ${d ? 'on ' + tenWhen(true) : 'over the next 10 days'}.${d ? ` ${d.chance['1in'] <= 5 ? 'Under 5' : d.chance['1in']}% chance of snow.` : ''} Expected ${hf(t[0])} in; 1 in 10 chance of more than ${hf(t[2])}.` +
+      $('headSub').innerHTML = (d ? morningLine(d, mid.id).replace('class="m', 'class="m head') : '') + `<b>${mid.name}</b>, ${what} ${d ? 'on ' + tenWhen(true) : 'over the next 10 days'}.${d ? ` ${d.chance['1in'] <= 5 ? 'Under 5' : d.chance['1in']}% chance of snow.` : ''} Expected ${hf(t[0])} in; 1 in 10 chance of more than ${hf(t[2])}.` +
         (d ? ` Snow quality: <b>${d.quality}</b>.${d.source === 'ensemble' ? ' From the ensemble, ' + d.lead_day + ' days out.' : ''}` : '') +
         (d && d.wind && d.wind.strength >= 0.2 ? ` Ridge wind from the ${d.wind.from} near ${d.wind.mph} mph: ${d.wind.strength >= 1 ? 'more' : 'a little more'} on slopes just over the ridges from it, less on the exposed side.` : d && d.wind ? ' Light ridge wind: little loading.' : '');
     } else {
@@ -404,15 +421,17 @@
       const [likely, low, high] = amounts(d);
       const trust = d.source === 'ensemble' ? (d.skill_pct >= 15 ? 'fair guide' : d.skill_pct >= 5 ? 'weak guide' : 'little better than the average for the date') : 'checked forecast';
       return `<button class="tday ${onMap(d.day) ? 'on' : ''} ${firstEns && d.day === firstEns.day && d.day > 1 ? 'split' : ''}" data-day="${d.day}">
+        ${morningLine(d, zid)}
         <span class="d">${day(d.start, { weekday: 'short' })}<small>${day(d.start, { month: 'short', day: 'numeric' })}</small></span>
-        <span class="a"><b>${rng(...(d.lead || d.mid)[zid])} in</b> ${d.lead_if_snow ? 'if it snows' : 'of snow'} <span>(${odds(d.chance['1in'])} chance)</span><small>expected ${hf(likely)} in &middot; up to ${hf(high)} &middot; ${trust}${d.blend_snow_in != null && d.blend_snow_in >= 0.5 ? `<br>National Blend alone: ${hf(d.blend_snow_in)} in at the gauge` : ''}</small></span>
+        <span class="a"><b>${rng(...(d.lead || d.mid)[zid])} in</b> ${d.lead_if_snow ? 'if it snows' : 'of snow'} <span>(${odds(d.chance['1in'])} chance)</span><small>falling 5 am ${day(d.start, { weekday: 'short' })} to 5 am ${day(new Date(new Date(d.start + 'Z').getTime() + 864e5).toISOString().slice(0, 19), { weekday: 'short' })} &middot; expected ${hf(likely)} in &middot; up to ${hf(high)} &middot; ${trust}${d.blend_snow_in != null && d.blend_snow_in >= 0.5 ? `<br>National Blend alone: ${hf(d.blend_snow_in)} in at the gauge` : ''}</small></span>
         <span class="c">${move(d)}${spark(d)}</span></button>`; }).join('');
     const all = outlook.total ? `<button class="tday total ${onMap(0) ? 'on' : ''}" data-day="0"><span class="a"><b>${rng(...outlook.total.mid[zid])} in</b> of snow over all 10 days <span>(expected ${hf(outlook.total.zones[zid][0])}, up to ${hf(outlook.total.zones[zid][2])})</span></span><span class="c">show total</span></button>` : '';
     const blocks = outlook.blocks.length ? '<div class="tiles">' + outlook.blocks.map(b => `<div><div class="n">${fmt(b.zones[zid][0])}"</div><div class="l">${b.name}: ${b.word}, range ${fmt(b.zones[zid][1])} to ${fmt(b.zones[zid][2])}</div></div>`).join('') + '</div>' : '';
     const sk = outlook.skill, lead = k => (sk[k] ? `${sk[k].skill_pct}%` : '');
     const hour = iso => day(iso, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
     el.innerHTML = `<div class="why"><h2>${zname}, next 10 days</h2>
-      <p class="note">Inches of new snow each day from 5 am. A day with at least a 1 in 5 chance of snow shows the range to expect if it snows, with the chance beside it; below that it reads 0. "Up to" is the 1-in-10 high end. ${tenOK() ? 'Tap a day to see it on the map. ' : ''}Updated ${hour(outlook.updated)} from the ensemble run of ${hour(outlook.ensemble_run)}${outlook.blend_run ? ` and the National Blend of ${hour(outlook.blend_run)}` : ''}; new runs arrive four times a day, the next about ${hour(outlook.next_update)}.${state.zone ? '' : ' Pick a zone on the Zones tab to see it here.'}</p>
+      <p class="note morn-note"><b>Morning total</b> is the number to check before skiing: new snow in the 24 hours before 5 am, the time and window of a morning snow report. It is this forecast's figure for the zone, not the resort's report. Today's is what the gauge measured.</p>
+      <p class="note">Below it, inches of new snow each day from 5 am to 5 am. A day with at least a 1 in 5 chance of snow shows the range to expect if it snows, with the chance beside it; below that it reads 0. "Up to" is the 1-in-10 high end. ${tenOK() ? 'Tap a day to see it on the map. ' : ''}Updated ${hour(outlook.updated)} from the ensemble run of ${hour(outlook.ensemble_run)}${outlook.blend_run ? ` and the National Blend of ${hour(outlook.blend_run)}` : ''}; new runs arrive four times a day, the next about ${hour(outlook.next_update)}.${state.zone ? '' : ' Pick a zone on the Zones tab to see it here.'}</p>
       ${chart}${blocks}<div class="key" style="margin-top:10px"><span><i class="t"></i>10th to 90th percentile range</span><span>change is since a day ago</span></div>${all}${rows}
       <h3>How far to trust it</h3>
       <p class="note">Tested on ${sk['4'] ? sk['4'].n : ''} held-out days per lead (winters ${outlook.skill_seasons || ''}). Improvement over simply quoting the average for the time of year: day 4 ${lead('4')}, day 5 ${lead('5')}, day 6 ${lead('6')}, day 7 ${lead('7')}, day 8 ${lead('8')}, day 9 ${lead('9')}, day 10 ${lead('10')}. "Expected" is the chance of snow times how much would fall, so the days add up to the total. The map shows the expected amount for each day. Past day 3 the forecast draws on the GEFS ensemble and the National Blend. It usually sits below the Blend's own figure on a snowy day: over six winters, when the Blend called for 0.30 to 0.45 in of water four to six days out, the gauge averaged 0.27 and nothing fell on almost a quarter of those days.</p>

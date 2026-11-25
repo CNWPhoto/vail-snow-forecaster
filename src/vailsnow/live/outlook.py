@@ -292,6 +292,33 @@ def main_forecast(starts: list[pd.Timestamp]) -> dict[pd.Timestamp, dict]:
     return out
 
 
+def morning_measured(resort: Resort, five_am: pd.Timestamp, fallback_ratio: float | None = None) -> dict | None:
+    """New snow in the 24 hours before `five_am`, as the mid-mountain gauge measured it: the figure
+    day 1's morning total shows, since that morning has already happened. Water comes from the
+    gauge; inches of snow are that water times the snow ratio the forecast gave for the same day.
+    None when the gauge cannot be read."""
+    from ..extras import alerts, scorecard
+    try:
+        rec = scorecard.gauge_record(resort, max_age_h=1.0)
+        got = alerts.measured(rec, five_am - pd.Timedelta(hours=24), five_am)
+    except Exception:
+        return None
+    if not got["hours_reported"]:
+        return None
+    per_inch = None
+    log = scorecard.read_log()
+    if len(log):
+        day = log[log["start"] == five_am - pd.Timedelta(hours=24)].sort_values("run")
+        if len(day) and np.isfinite(day["ratio"].iloc[-1]):
+            per_inch = float(day["ratio"].iloc[-1]) * float(day["snow_share"].iloc[-1] if np.isfinite(day["snow_share"].iloc[-1]) else 1.0)
+    if per_inch is None and fallback_ratio:
+        per_inch = float(fallback_ratio)
+    site = scorecard.target(resort)
+    return {"at": five_am.isoformat(), "site": site["name"], "elev_ft": site["elev_ft"], "water_in": got["water_in"],
+            "snow_in": None if per_inch is None else round(got["water_in"] * per_inch, 1), "depth_change_in": got["depth_change_in"],
+            "hours_reported": got["hours_reported"], "hours": got["hours"]}
+
+
 def cell_fields(resort: Resort) -> dict:
     """The 30 m grid pieces the map needs: which cells are ski terrain, their elevation, long-term pattern and zone."""
     g = grid.static(resort)
@@ -481,6 +508,8 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
            "days": days, "blocks": blocks, "total": total, "map": bool(write and fields), "map_lead": bool(write and fields), "zones": [{"id": z["id"], "name": z["name"]} for z in zones],
            "skill": {k: {x: v[x] for x in ("skill_pct", "mae", "average_for_the_month_mae", "inside_10_90_pct", "n")} for k, v in skill["by_lead"].items()},
            "skill_blocks": skill["blocks"], "skill_seasons": f"{skill['seasons'][0] - 1} to {skill['seasons'][1]}", "wet_day_in": skill["wet_day_in"], "logged": logged}
+    first = next((d for d in days if d["available"]), None)
+    out["morning_measured"] = morning_measured(resort, starts[0], first.get("ratio") if first else None) if write else None
     if write:
         write_map(resort, cells, fields, total_fields)
         path = web_data_dir() / "outlook.json"

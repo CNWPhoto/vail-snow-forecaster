@@ -186,3 +186,21 @@ def test_a_day_leads_with_snow_if_it_snows_or_with_zero():
     assert outside[2] and inch <= outside[0] < outside[1] == 0.27       # better than 1 in 5: from an inch or more up to the high end, not zero
     edge = outlook.lead_range(levels, [0.0, 0.0, 0.0, 0.0, 0.0], 0.05, inch)
     assert edge == (0.0, 0.0, False)
+
+
+def test_the_first_morning_total_is_what_the_gauge_measured(monkeypatch):
+    from vailsnow.extras import scorecard
+    five_am = pd.Timestamp("2026-01-10T12:00:00")
+    hours = pd.date_range(five_am - pd.Timedelta(hours=24), five_am, freq="h")
+    rec = {"water": pd.DataFrame({"water_in": 0.01, "provisional": False}, index=hours), "depth": pd.Series(np.linspace(30.0, 33.0, len(hours)), index=hours)}
+    monkeypatch.setattr(scorecard, "gauge_record", lambda resort, max_age_h=3.0, today=None: rec)
+    monkeypatch.setattr(scorecard, "read_log", lambda path=None: pd.DataFrame([{"run": five_am - pd.Timedelta(hours=24), "start": five_am - pd.Timedelta(hours=24), "ratio": 15.0, "snow_share": 1.0}]))
+    monkeypatch.setattr(scorecard, "target", lambda resort: {"name": "Gauge", "elev_ft": 10000})
+    got = outlook.morning_measured(None, five_am)
+    assert got["water_in"] == 0.24 and got["snow_in"] == 3.6          # 24 hours of 0.01 in at the ratio forecast for that day
+    assert got["depth_change_in"] == 3.0 and got["hours_reported"] == 24
+
+    def broken(resort, max_age_h=3.0, today=None):
+        raise OSError("gauge service down")
+    monkeypatch.setattr(scorecard, "gauge_record", broken)
+    assert outlook.morning_measured(None, five_am) is None            # no reading: the line is left out, the build carries on
