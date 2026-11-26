@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RUNTIME_TAG: runtime-v1
+  RUNTIME_TAG: runtime-v2
 
 jobs:
   run:
@@ -68,12 +68,13 @@ jobs:
           gh release download "$RUNTIME_TAG" --pattern runtime.tar.gz
           mkdir -p runtime && tar -xzf runtime.tar.gz -C runtime && rm runtime.tar.gz
 
-      - name: Reuse finished gauge years and recent snow-model windows
+      - name: Reuse finished gauge years, recent snow-model windows and European ensemble runs
         uses: actions/cache@v4
         with:
           path: |
             cache/snotel
             cache/snodas_live
+            cache/ecens
           key: downloads-${{ github.run_id }}
           restore-keys: downloads-
 

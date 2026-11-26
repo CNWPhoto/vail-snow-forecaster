@@ -42,6 +42,7 @@ def main() -> None:
     ol.add_argument("--replay", action="store_true", help="first log what this season's earlier runs would have said")
     sub.add_parser("depth", help="estimate base depth across the mountain from SNODAS and the SNOTEL depth sensors")
     sub.add_parser("outlook-fetch", help="download 10-day ensemble forecasts as issued since late 2020")
+    sub.add_parser("european-fetch", help="download the European ensemble's precipitation as issued since late 2018 (about 100 GB passes through; 20 MB is kept)")
     sub.add_parser("outlook-train", help="fit and score the days 4 to 10 model, season by season, then fit the one used live")
     pr = sub.add_parser("prune", help="remove files the schedule no longer needs (old map forecasts, spent downloads) and trim job logs")
     pr.add_argument("--dry-run", action="store_true", help="say what would go and remove nothing")
@@ -198,6 +199,10 @@ def main() -> None:
     elif args.cmd == "outlook-fetch":
         from .fcst.archive import run
         print(run(models=("gefs_240",), workers=4))
+
+    elif args.cmd == "european-fetch":
+        from .fcst import ecmwf
+        print(ecmwf.run_history())
 
     elif args.cmd == "outlook-train":
         import json

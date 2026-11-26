@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import threading
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -51,7 +52,9 @@ def get(url: str, byte_range: tuple[int, int | None] | None = None, optional: bo
         a, b = byte_range
         headers["Range"] = f"bytes={a}-{'' if b is None else b}"
     last: Exception | None = None
-    for _ in range(4):
+    for attempt in range(4):
+        if attempt:
+            time.sleep(1.5 * attempt)                         # a busy server or a dropped connection: give it a moment
         try:
             r = session().get(url, headers=headers, timeout=120)
             if r.status_code in (403, 404):

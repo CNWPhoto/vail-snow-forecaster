@@ -18,7 +18,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from ..fcst import archive, grib
+from ..fcst import archive, ecmwf, grib
 from ..obs import hourly
 from ..resort import Resort, data_dir, load_resort
 from ..verify import scores
@@ -29,14 +29,20 @@ from .table import MM_PER_IN
 LEADS = tuple(range(4, 11))
 FEATURES = ("gefs_mean", "gefs_spread", "gefs_mean_prev", "gefs_mean_next", "gefs_area", "lead_day", "t700")
 BLEND = ("nbm_qpf", "nbm_area", "nbm_max", "nbm_prev", "nbm_next")       # the National Blend's own precipitation, 2.5 km
-VARIANTS = {"ensemble": FEATURES, "with_blend": FEATURES + BLEND}
-USE = "with_blend"            # set by the held-out comparison in `score_variants`: see TEN_DAY_OUTLOOK.md
+EUROPEAN = ecmwf.FEATURES                # the European ensemble's mean precipitation, 0.25 degree
+EUROPEAN_SPREAD = ecmwf.MEMBER_FEATURES  # how far its members disagree, and their wet end (2023 on)
+VARIANTS = {"ensemble": FEATURES, "with_blend": FEATURES + BLEND, "with_european": FEATURES + BLEND + EUROPEAN,
+            "with_european_members": FEATURES + BLEND + EUROPEAN + EUROPEAN_SPREAD}
+USE = "with_european"         # set by the held-out comparison in `score_variants`: see TEN_DAY_OUTLOOK.md
+EUROPEAN_LAG_H = 12           # the European run paired with an ensemble run when fitting: the one twelve hours earlier, the
+                              # oldest the live outlook ever has to use (a European run is out about 7 h 45 min after it starts)
 BLEND_LAG_H = 7               # the Blend cycle paired with an ensemble run: seven hours later (19z for a 12z run), the first
                               # of its long-range refreshes to hold that hour's GFS and European runs
 NBM_REACH = 2                 # cells either side of the gauge cell for the area mean and the wettest cell (about 12 km square)
 STRETCH = (0.8, 0.9, 1.0, 1.1, 1.2, 1.35, 1.5, 1.7, 2.0)
 UPPER = (0.75, 0.9)
 WET_DAY_IN = 0.25             # a day worth planning around: about 3 to 4 in of snow at mid-mountain
+BIG_DAY_IN = 0.5              # a big day: about 7 in of snow or more at mid-mountain
 BLOCKS = {"days 4 to 7": (4, 7), "days 8 to 10": (8, 10)}
 
 
@@ -100,10 +106,13 @@ def build_table(resort: Resort | None = None) -> pd.DataFrame:
         r, c = grib.nearest(d["lat"], d["lon"], target["lat"], target["lon"])
         nb = archive.load("nbm_240", run + pd.Timedelta(hours=BLEND_LAG_H))
         nr, nc = grib.nearest(nb["lat"], nb["lon"], target["lat"], target["lon"]) if nb is not None else (0, 0)
+        ec = ecmwf.load(run - pd.Timedelta(hours=EUROPEAN_LAG_H))
+        ew = ecmwf.weights(ec["lat"], ec["lon"], target["lat"], target["lon"]) if ec is not None else None
         for k in LEADS:
             f = window_features(d, r, c, 24 * (k - 1))
             if f is not None:
-                rows.append({"run": run, "start": run + pd.Timedelta(hours=24 * (k - 1)), **f, **blend_features(nb, nr, nc, 24 * (k - 1) - BLEND_LAG_H)})
+                rows.append({"run": run, "start": run + pd.Timedelta(hours=24 * (k - 1)), **f, **blend_features(nb, nr, nc, 24 * (k - 1) - BLEND_LAG_H),
+                             **ecmwf.features(ec, ew, 24 * (k - 1) + EUROPEAN_LAG_H)})
     t = pd.DataFrame(rows)
     hw = pd.read_parquet(data_dir() / "obs" / "snotel_hourly_water.parquet")
     hw = hw[hw["site"] == target["id"]].set_index("time_utc")
@@ -168,18 +177,23 @@ def hindcast(t: pd.DataFrame | None = None, variant: str | None = None, save: bo
 
 
 def score_variants(t: pd.DataFrame | None = None) -> dict:
-    """The ensemble alone against the ensemble plus the National Blend, on the same held-out days."""
+    """The ensemble alone, with the National Blend, and with the European ensemble, on the same held-out days."""
     t = build_table() if t is None else t
     out = {}
     for name in VARIANTS:
         h = hindcast(t, name, save=False)
         out[name] = {}
         for k, g in h.groupby("lead_day"):
-            wet = g[g["obs"] >= 0.3]
+            wet, big = g[g["obs"] >= 0.3], g[g["obs"] >= BIG_DAY_IN]
             out[name][str(int(k))] = {"n": int(len(g)), "mae": round(scores.mae(g["obs"], g["q50"]), 4), "mean_mae": round(scores.mae(g["obs"], g["mean"]), 4),
                                       "crps": round(_crps(g, "q"), 4), "skill_pct": round(100 * (1 - _crps(g, "q") / _crps(g, "clim_q")), 1),
                                       "storm_days": int(len(wet)), "storm_day_mean_miss": round(scores.mae(wet["obs"], wet["mean"]), 3) if len(wet) else None,
-                                      "storm_day_mean_forecast": round(float(wet["mean"].mean()), 3) if len(wet) else None}
+                                      "storm_day_mean_forecast": round(float(wet["mean"].mean()), 3) if len(wet) else None,
+                                      "big_days": int(len(big)), "big_day_mean_miss": round(scores.mae(big["obs"], big["mean"]), 3) if len(big) else None,
+                                      "big_day_mean_forecast": round(float(big["mean"].mean()), 3) if len(big) else None,
+                                      "big_day_high_end": round(float(big["q90"].mean()), 3) if len(big) else None,
+                                      "big_day_measured": round(float(big["obs"].mean()), 3) if len(big) else None,
+                                      "big_days_above_high_end_pct": round(100 * float((big["obs"] > big["q90"]).mean())) if len(big) else None}
         if "nbm_qpf" in h:
             nb = h.dropna(subset=["nbm_qpf"])
             out.setdefault("blend_as_issued", {}).update({str(int(k)): {"n": int(len(g)), "mae": round(scores.mae(g["obs"], g["nbm_qpf"]), 4)} for k, g in nb.groupby("lead_day")})

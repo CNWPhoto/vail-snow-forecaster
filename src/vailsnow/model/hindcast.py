@@ -16,7 +16,7 @@ SIZE_BINS = ((0.0, 0.005, "dry"), (0.005, 0.25, "under 0.25 in"), (0.25, 0.5, "0
 # column in the hindcast table -> label in the score tables
 METHODS = {
     "q50": "this model (median)", "mean": "this model (mean)", "scaled_raw": "raw model, bias removed",
-    "qpf_3x3": "raw HRRR", "gfs_qpf": "raw GFS", "nbm_qpf": "National Blend (NBM)", "ndfd_qpf": "NWS official",
+    "qpf_3x3": "raw HRRR", "gfs_qpf": "raw GFS", "nbm_qpf": "National Blend (NBM)", "ndfd_qpf": "NWS official", "ec_mean": "raw European ensemble",
     "clim_q50": "climatology (median)", "clim_mean": "climatology (mean)",
 }
 
@@ -39,7 +39,8 @@ def _row(h: pd.DataFrame, col: str) -> dict:
 
 STRETCH = tuple(np.round(np.arange(0.7, 3.01, 0.05), 2))
 UPPER = tuple(lv for lv in precip.LEVELS if lv > 0.5)
-PRIMARY = "own"                    # the variant the zone forecast and the snowfall test use (NBM as an input added nothing)
+PRIMARY = "european"               # the variant the zone forecast and the snowfall test use (NBM as an input added nothing;
+                                   # the European ensemble's mean added a little on days 1 and 3)
 
 
 def qcol(level: float) -> str:

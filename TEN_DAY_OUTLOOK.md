@@ -6,11 +6,22 @@ Date: 2026-11-24. Added after Phase 6. Runs on a schedule on GitHub Actions sinc
 
 ## Verdict
 
-- **The map now has a 10-day tab.** Days 1 to 3 come from the checked forecast; days 4 to 10 come from a new long-range model built on the GEFS ensemble.
+- **The map now has a 10-day tab.** Days 1 to 3 come from the checked forecast; days 4 to 10 come from a long-range model built on the GEFS ensemble, the European ensemble and the National Blend.
 - **It re-evaluates with every ensemble run, four times a day,** once it is scheduled. Each day in the strip shows how its call has moved since a day ago, and every long-range forecast is logged and later scored against the gauge.
-- **Skill fades fast.** Against simply quoting the average for the time of year, the long-range forecast is 27% better at day 4, 16% at day 7 and 8% at day 10.
+- **Skill fades fast.** Against simply quoting the average for the time of year, the long-range forecast is 28% better at day 4, 17% at day 7 and 8% at day 10.
 - **Past day 3, read the chance of snow and the high end.** The likely amount is usually zero that far out even when a storm is possible.
 - **Zones add nothing new past day 3.** They differ only by the long-term pattern.
+
+## The European ensemble (2026-11-26)
+
+- **Days 4 to 10 now also draw on the European Centre's ensemble (ECMWF),** the average of its members' precipitation at the gauge, around it, and for the day before and after. Days 1 and 3 use it too; day 2 does not (no gain when tested).
+- **What it bought, each winter held out:** skill against the average for the date went from 27, 21, 18, 16, 12, 9, 8% (days 4 to 10) to 28, 24, 21, 17, 12, 10, 8%. Days 4 to 7 added up now miss by 0.213 in of water (0.229 before), ahead of the raw GEFS mean (0.218) for the first time.
+- **Big days (0.5 in of water or more, about 10 in of snow):** four to five days out the expected amount rose from 3.9 to 4.6 in and the high end from 7.8 to 9.1, against 9.7 in that fell. Better, and still well short.
+- **The whole gain is at the edge of what six winters can show:** the 95% range of the improvement runs from a clear gain to none.
+- **Which run:** a European run is complete about 7 h 45 min after it starts, so the refreshes at 1:15 pm and 4:55 pm Mountain Standard Time use the 12z run and the others the 00z run or the previous day's 12z. The model was fitted with the run twelve hours older than the GEFS run, the oldest the live outlook ever uses. The page says which run it has.
+- **History:** 00z runs since October 2018. 2018 to 2022 is the ensemble mean from the WeatherBench 2 copy; from late 2023 it is members 1 to 25 from ECMWF open data. January to April 2023 is missing (the one public copy refused the downloads) and the model is fitted with that gap.
+- **The members' spread and their 90th percentile were tried as inputs and added nothing.**
+- **Credit:** this forecast is based in part on data and products of the European Centre for Medium-Range Weather Forecasts (ECMWF), CC BY 4.0.
 
 ## The National Blend, and why this forecast sits below it (2026-11-24, evening)
 
@@ -47,7 +58,7 @@ The 10-day rows and the map now lead with a likely range to the half inch (the 2
 - **Why the expected amount is safe now:** before the gauge-tick correction it put snow on every dry day. After it, days when every model is dry read zero. An expected amount under half an inch is not drawn on the map.
 - **The 10 day button opens on all ten days.** The total is the sum of the days; its range is what past runs with the same forecast total went on to measure.
 - **What tells one part of the mountain from another:** days 1 to 3 use every layer (the day's HRRR pattern, snow level, density). Past day 3 only the long-term pattern, elevation and the snow level are left. There is no wind or storm-direction detail that far out, and the map says so.
-- **The ten-day total's range is checked:** 79% of 967 held-out totals fell inside it (80% is the target). The total itself misses by 0.38 in of water against 0.52 for the average for the date.
+- **The ten-day total's range is checked:** 79% of 967 held-out totals fell inside it (80% is the target). The total itself misses by 0.36 in of water against 0.52 for the average for the date.
 
 Snow is now the lead number everywhere. The Why tab, the Score tab and the analogs give inches of snow first and water second. The gauge measures water, so "measured" snow on the Score tab is that water at the snow-to-water ratio the forecast used that day.
 
@@ -77,20 +88,20 @@ Each winter from 2020-21 to 2025-26 was forecast by a model that never saw it: 1
 
 | Days ahead | Typical miss | Raw ensemble | Average for the date | Better than the average | Days inside the range |
 |---|---|---|---|---|---|
-| 4 | 0.069 in | 0.075 | 0.087 | 27% | 88% |
-| 5 | 0.076 in | 0.080 | 0.087 | 21% | 87% |
-| 6 | 0.078 in | 0.087 | 0.087 | 18% | 88% |
-| 7 | 0.080 in | 0.091 | 0.087 | 16% | 88% |
-| 8 | 0.082 in | 0.099 | 0.087 | 12% | 89% |
-| 9 | 0.085 in | 0.103 | 0.087 | 9% | 88% |
-| 10 | 0.086 in | 0.104 | 0.087 | 8% | 89% |
+| 4 | 0.069 in | 0.075 | 0.087 | 28% | 88% |
+| 5 | 0.073 in | 0.080 | 0.087 | 24% | 87% |
+| 6 | 0.076 in | 0.087 | 0.087 | 21% | 88% |
+| 7 | 0.079 in | 0.091 | 0.087 | 17% | 88% |
+| 8 | 0.082 in | 0.099 | 0.087 | 12% | 88% |
+| 9 | 0.085 in | 0.103 | 0.087 | 10% | 89% |
+| 10 | 0.086 in | 0.104 | 0.087 | 8% | 90% |
 
 Misses are inches of water at the mid-mountain gauge for one day. "Better than the average" scores the whole forecast range, not just the middle. The ranges are a little wide: 80% is the target.
 
 - **For comparison, the day-ahead forecast misses by 0.057 in over the same winters.** Day 4 is not far behind it; day 8 onward is barely better than knowing the month.
-- **Calling a wet day.** When the model gave a 30% or better chance of 0.25 in of water (about 4 in of snow), it happened 45% of the time at days 4 and 5, and about 30% at days 8 to 10. Such days make up about 12% of all days.
-- **Multi-day totals are the more useful number.** Days 4 to 7 added up miss by 0.22 in against 0.30 for the average, with 85% inside the stated range. Days 8 to 10: 0.21 against 0.25, with 89% inside.
-- **For totals the model is no better than the raw ensemble mean** (0.222 against 0.218). Its gain is in the single-day ranges and odds.
+- **Calling a wet day.** When the model gave a 30% or better chance of 0.25 in of water (about 4 in of snow), it happened 48% of the time at day 4, 45% at day 5, and about 30% at days 8 to 10. Such days make up about 12% of all days.
+- **Multi-day totals are the more useful number.** Days 4 to 7 added up miss by 0.21 in against 0.30 for the average, with 85% inside the stated range. Days 8 to 10: 0.21 against 0.25, with 88% inside.
+- **For totals the model is only just ahead of the raw GEFS mean** (0.213 against 0.218). Its gain is in the single-day ranges and odds.
 
 This season so far is on the Score tab, by days ahead. It covers 23 replayed runs, too few to mean much.
 
@@ -103,7 +114,7 @@ This season so far is on the Score tab, by days ahead. It covers 23 replayed run
 
 ## How it works
 
-- **Inputs:** the ensemble's mean and spread for the day, the mean for the day before and after, the area average, the lead, the 700 mb temperature, and the National Blend's precipitation at and around the gauge.
+- **Inputs:** the GEFS ensemble's mean and spread for the day, the mean for the day before and after, the area average, the lead, the 700 mb temperature, the National Blend's precipitation at and around the gauge, and the European ensemble's mean at and around the gauge and for the day before and after.
 - **Fitted on the 12z run only.** A run from another hour is treated as the nearest lead, which is up to twelve hours off.
 - **Snow from water:** past day 3 there is no temperature profile. Snow level and density are estimated from the 700 mb temperature alone, using relations read off past wet days.
 - **Multi-day ranges** are read from what past runs with a similar forecast total went on to measure.
@@ -113,14 +124,13 @@ This season so far is on the Score tab, by days ahead. It covers 23 replayed run
 - Nobody is told if a scheduled run fails. The map's "Issued" line and `vailsnow status` show a stale forecast, but nothing alerts on it.
 - After the clocks change in March, the model files arrive an hour later by the wall clock. The forecast job allows for that; the evening alert and the 10-day refresh will each use a run one step older until the jobs are shifted an hour.
 - Nothing past day 10, though the ensemble runs to day 16.
-- ECMWF's free ensemble data was not used. It would likely help most at days 6 to 10.
 - Other run hours (00z, 06z, 18z) were not scored separately.
 
 ## Built
 
 | Piece | Where |
 |---|---|
-| 10-day ensemble fetch | `fcst/archive.py` (`fetch_gefs_long`) |
+| 10-day ensemble fetch | `fcst/archive.py` (`fetch_gefs_long`); the European ensemble in `fcst/ecmwf.py` |
 | Long-range model, held-out scores, multi-day ranges | `model/extended.py` |
 | The outlook file, change tracking, log | `live/outlook.py` |
 | By-lead scoring this season | `extras/scorecard.py` |

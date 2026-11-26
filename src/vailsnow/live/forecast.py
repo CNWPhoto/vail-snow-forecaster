@@ -22,13 +22,14 @@ import pandas as pd
 from ..catalog.regimes import sector
 from ..extras import analogs as analog_finder
 from ..extras import firstchair, liftwind
-from ..fcst import archive, grib, hrrr
+from ..fcst import archive, ecmwf, grib, hrrr
 from ..model import exposure, final, settle, slr, zones
 from ..model import orographic as og
 from ..model.downscale import ANOMALY_LIMIT, HRRR_FLOOR_IN
+from ..model.hindcast import PRIMARY
 from ..model.snowfall import SITE_DAMPING
 from ..model.snowlevel import KELVIN, at_elevation, snow_fraction, snow_level_m
-from ..model.table import MM_PER_IN, elevation_matched, hrrr_window, sites
+from ..model.table import EUROPEAN_LAG_H, MM_PER_IN, elevation_matched, hrrr_window, sites
 from ..resort import ROOT, Resort, data_dir, load_resort, web_data_dir
 from . import contours, grid
 
@@ -106,6 +107,14 @@ def day_features(resort: Resort, run: pd.Timestamp) -> tuple[dict[int, pd.Series
             if all(f"mean_{k}" in e and f"spread_{k}" in e for k in keys):
                 days[day].update(gefs_mean=sum(float(e[f"mean_{k}"][r, c]) for k in keys) / MM_PER_IN,
                                  gefs_spread=float(np.sqrt(sum(float(e[f"spread_{k}"][r, c]) ** 2 for k in keys))) / MM_PER_IN)
+    try:                                                      # the European ensemble's 00z run: out since about 07:45
+        ec_run = run - pd.Timedelta(hours=EUROPEAN_LAG_H)
+        ecmwf.fetch(ec_run)
+        for day in (1, 2, 3):
+            f = ecmwf.for_window(la, lo, ec_run, (day - 1) * 24 + EUROPEAN_LAG_H)
+            days[day].update(ec_mean=f["ec_mean"], ec_area=f["ec_area"])
+    except Exception:
+        pass                                                  # the forecast stands without it
     gr, gc = cells[target]
     raw = {"apcp": d["apcp"], "hours": d["h_apcp"], "gauge_cell": (gr, gc)}
     return {k: pd.Series(v, dtype=float) for k, v in days.items()}, raw
@@ -280,7 +289,7 @@ def build(run: pd.Timestamp | None = None, name: str | None = None, resort: Reso
         base_t = float(at_elevation(f["t_ref"], f["t_per_km"], base_elev)) - KELVIN
         regime = sector(float(f["dir600"]), float(f.get("spd600_vec", f["spd600"])))
         summary.append({
-            "day": i + 1, "available": True, "start": (run + pd.Timedelta(days=i)).isoformat(), "model": "HRRR, GFS, GEFS" if tier < 72 else "GFS, GEFS",
+            "day": i + 1, "available": True, "start": (run + pd.Timedelta(days=i)).isoformat(), "model": ("HRRR, GFS, GEFS" if tier < 72 else "GFS, GEFS") + (", European ensemble" if "ec_mean" in cols and np.isfinite(f.get("ec_mean", np.nan)) else ""),
             "water_in": {k: round(v, 2) for k, v in p.items()}, "regime": regime,
             "wind_from_deg": round(float(f["dir600"])), "wind_from": compass(float(f["dir600"])), "wind_600mb_ms": round(float(f["spd600"]), 1),
             "ridge_wind_mph": round(speed * 2.237), "share_moved_by_wind": round(moving, 2), "lee_loading": round(loading, 2),
@@ -522,7 +531,7 @@ def verification_notes() -> dict:
              "first_chair": "The ranking's weights are choices, not fitted values: nothing records where the skiing was best. Zone amounts differ mostly by elevation.",
              "analogs": "Shown for context. On held-out days the average of the closest past days missed by more than the model did."}
     try:
-        s = json.loads((m / "scores_precip.json").read_text())["own"]["24"]
+        s = json.loads((m / "scores_precip.json").read_text())[PRIMARY]["24"]
         notes["water"] = (f"Mid-mountain water, 24 h ahead: typical miss {s['all']['methods']['this model (median)']['mae']:.2f} in over "
                           f"{s['all']['n']:,} held-out days ({s['seasons'][0] - 1} to {s['seasons'][1]}). Level with the National Blend of Models.")
         st = json.loads((m / "scores_settle.json").read_text())

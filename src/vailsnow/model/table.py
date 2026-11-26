@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from ..catalog.regimes import sector
-from ..fcst import archive, grib, hrrr
+from ..fcst import archive, ecmwf, grib, hrrr
 from ..obs import hourly
 from ..resort import Resort, data_dir, load_resort
 from ..upper import physics as ph
@@ -25,6 +25,7 @@ MM_PER_IN = 25.4
 # tier -> (run hour, first forecast hour, last forecast hour)
 HRRR_TIERS = {12: ((0, 12), 1, 12), 24: ((12,), 1, 24), 36: ((0,), 13, 36), 48: ((12,), 25, 48)}
 COARSE_TIERS = {24: (0, 24), 48: (24, 48), 72: (48, 72)}      # 12z run: window in forecast hours
+EUROPEAN_LAG_H = 12          # the European run a 12z forecast can use is that day's 00z run: the 12z one is not out until about 19:45
 
 
 def sites(resort: Resort) -> dict[str, tuple[float, float, float]]:
@@ -225,7 +226,14 @@ def baseline_rows(resort: Resort) -> pd.DataFrame:
             # six-hour spreads added in quadrature: a floor on the 24-hour spread (it ignores persistence)
             spread = float(np.sqrt(sum(d[k][r, c] ** 2 for k in keys))) / MM_PER_IN if all(k in d for k in keys) else np.nan
             erows.append({"tier": tier, "start": run + pd.Timedelta(hours=a), "gefs_mean": mean, "gefs_spread": spread})
-    for extra in (g, pd.DataFrame(erows)):
+    crows = []
+    la, lo, _ = pts[target]
+    for ec_run in ecmwf.history_runs(last=str(pd.Timestamp.now().normalize().date())):      # that day's 12z forecast uses it
+        run = ec_run + pd.Timedelta(hours=EUROPEAN_LAG_H)
+        f = {tier: ecmwf.for_window(la, lo, ec_run, a + EUROPEAN_LAG_H) for tier, (a, _) in COARSE_TIERS.items()}
+        crows += [{"tier": tier, "start": run + pd.Timedelta(hours=COARSE_TIERS[tier][0]), **{k: v[k] for k in ("ec_mean", "ec_area", "ec_spread", "ec_p90")}}
+                  for tier, v in f.items() if np.isfinite(v["ec_mean"])]
+    for extra in (g, pd.DataFrame(erows), pd.DataFrame(crows)):
         if len(extra):
             out = out.merge(extra, on=["tier", "start"], how="outer") if len(out) else extra
     return out

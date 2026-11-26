@@ -20,7 +20,7 @@ Nothing needs to run at home. GitHub Actions (`.github/workflows/forecast.yml`) 
 | 5 am alert (what the gauge measured overnight) | 12:05 |
 
 - `main` holds the code. `gh-pages` holds the published map and forecast files, as a single commit replaced on each run. `state` holds the forecast logs behind the scorecard.
-- The fitted models and terrain the jobs need (about 110 MB) are the `runtime-v1` release asset. The 58 GB of model history used for training is not here; retraining is done on a computer that has it (`hrrr-fetch`, `baseline-fetch`, `outlook-fetch`, then `table`, `hindcast`, `train`, `outlook-train`), and a new runtime asset is uploaded.
+- The fitted models and terrain the jobs need (about 110 MB) are the `runtime-v2` release asset. The 58 GB of model history used for training is not here; retraining is done on a computer that has it (`hrrr-fetch`, `baseline-fetch`, `outlook-fetch`, `european-fetch`, then `table`, `hindcast`, `train`, `outlook-train`), and a new runtime asset is uploaded.
 - A failed run sends GitHub's usual failure email to the repository owner.
 
 Start with `PROJECT_SUMMARY.md` for what the project is and how well it works. Work proceeded in phases with a written checkpoint after each:
@@ -190,7 +190,7 @@ src/vailsnow/          the package
   catalog/             snow events, flow regimes, NWS case library, climatology tables
   upper/               ERA5 download, storm upper-air features, daily flow direction
   grids/               PRISM normals and SNODAS snapshots
-  fcst/                forecasts as issued: HRRR (chunked copy), NBM, NWS grids, GFS
+  fcst/                forecasts as issued: HRRR (chunked copy), NBM, NWS grids, GFS, GEFS, the European ensemble
   model/               the four layers, the training table, hindcasts and zone output
   verify/              scores
   live/                the daily forecast: newest runs in, map files out
@@ -215,6 +215,7 @@ Snow observations: USDA NRCS SNOTEL; NWS COOP and CoCoRaHS (CC BY 4.0) via RCC-A
 Reanalysis: ERA5, Copernicus Climate Change Service (CC BY 4.0), via the WeatherBench 2 public copy.
 Precipitation normals: PRISM Climate Group, Oregon State University, https://prism.oregonstate.edu (accessed 2026-11-23).
 Snow model snapshots: SNODAS, NOAA NOHRSC, archived at NSIDC (G02158). Storm write-ups: NWS Grand Junction.
-Forecasts: NOAA HRRR (via the University of Utah's chunked copy on AWS Open Data), GFS, National Blend of Models and NDFD.
+Forecasts: NOAA HRRR (via the University of Utah's chunked copy on AWS Open Data), GFS, GEFS, National Blend of Models and NDFD.
+European ensemble: this forecast is based in part on data and products of the European Centre for Medium-Range Weather Forecasts (ECMWF), from ECMWF open data and the WeatherBench 2 public copy (CC BY 4.0). ECMWF has no part in this project and does not endorse it.
 Ridge wind check: FAA/NWS airport observations via the Iowa Environmental Mesonet, Iowa State University.
 Orographic precipitation theory: Smith and Barstad (2004), reimplemented from the paper.

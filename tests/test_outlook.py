@@ -244,3 +244,30 @@ def test_calendar_days_are_recut_from_the_5am_windows():
     # a missing window leaves the days that need it unavailable
     rows, _ = outlook.calendar_days(days, {1: buckets[1], 3: buckets[3]}, starts, measured, "a")
     assert [r["available"] for r in rows] == [True, False, False]
+
+
+def test_the_european_run_is_the_newest_one_out_live_and_the_fitted_pairing_in_a_replay(monkeypatch):
+    out = {pd.Timestamp("2026-11-26 00:00"), pd.Timestamp("2026-11-25 12:00"), pd.Timestamp("2022-01-05 00:00")}
+    asked = []
+
+    def fetch(run):
+        asked.append(run)
+        return "done" if run in out else "absent"
+
+    monkeypatch.setattr(outlook.ecmwf, "fetch", fetch)
+    monkeypatch.setattr(outlook.ecmwf, "load", lambda run: {"run": run})
+    gefs = pd.Timestamp("2026-11-26 12:00")
+    # 20:15 UTC: the 12z European run is tried first and is not all out yet, so the 00z one is used
+    run, d = outlook.european_for(gefs, pd.Timestamp("2026-11-26 20:15"))
+    assert run == pd.Timestamp("2026-11-26 00:00") and d is not None and asked[0] == pd.Timestamp("2026-11-26 12:00")
+    out.add(pd.Timestamp("2026-11-26 12:00"))
+    assert outlook.european_for(gefs, pd.Timestamp("2026-11-26 20:15"))[0] == pd.Timestamp("2026-11-26 12:00")
+    # 17:50 UTC: a 12z run cannot be out yet and is not asked for
+    asked.clear()
+    assert outlook.european_for(gefs, pd.Timestamp("2026-11-26 17:50"))[0] == pd.Timestamp("2026-11-26 00:00")
+    assert pd.Timestamp("2026-11-26 12:00") not in asked
+    # a replay of an old 12z run takes that morning's 00z run, the pairing the model was fitted with
+    assert outlook.european_for(pd.Timestamp("2022-01-05 12:00"), pd.Timestamp("2026-11-26 20:15"))[0] == pd.Timestamp("2022-01-05 00:00")
+    # nothing available: the outlook goes on without it
+    out.clear()
+    assert outlook.european_for(gefs, pd.Timestamp("2026-11-26 20:15")) == (gefs, None)

@@ -20,9 +20,12 @@ GEFS = ("gefs_mean",)
 SPREAD = ("gefs_spread", "run_gap")                 # how much the forecasts disagree
 NBM = ("nbm_qpf",)
 LONG_RANGE = ("gefs_mean_prev", "gefs_mean_next", "gefs_area", "nbm_area", "nbm_max", "nbm_prev", "nbm_next")      # days 4 to 10 (model/extended.py)
-RISING = QPF + GFS_QPF + LAGGED + GEFS + NBM + LONG_RANGE          # more forecast precipitation never lowers the answer
+EUROPEAN = ("ec_mean", "ec_area")                   # the European ensemble's mean, from its 00z run (fcst/ecmwf.py)
+RISING = QPF + GFS_QPF + LAGGED + GEFS + NBM + LONG_RANGE + EUROPEAN + ("ec_prev", "ec_next", "ec_p90")      # more forecast precipitation never lowers the answer
 WINTER = (11, 12, 1, 2, 3, 4)
-VARIANTS = ("phase3", "own", "with_nbm")
+VARIANTS = ("phase3", "own", "with_nbm", "european")
+EUROPEAN_TIERS = (24, 72)                           # day 1 and day 3 of the 12z forecast. Held out, it added about a point of skill
+                                                    # to each and nothing to day 2 (PROJECT_SUMMARY.md, 2026-11-26), so day 2 is left alone
 GFS_FLOW = ("gfs_u600", "gfs_v600", "gfs_spd600", "gfs_t600", "gfs_rh600", "gfs_t700", "gfs_pwat")
 LEVELS = tuple(sorted(set(CRPS_LEVELS) | {0.1, 0.5, 0.9}))
 SETTINGS = dict(max_depth=3, learning_rate=0.05, max_iter=250, min_samples_leaf=20, l2_regularization=1.0,
@@ -35,6 +38,7 @@ def features_for(tier: int, table: pd.DataFrame, variant: str = "phase3") -> lis
     phase3     HRRR, with GFS where the table has it; GFS alone at 72 h
     own        adds the previous HRRR run, the GEFS ensemble mean and the two measures of disagreement
     with_nbm   adds the National Blend's own forecast as an input
+    european   `own` plus the European ensemble's mean, at the gauge and around it, on the days in EUROPEAN_TIERS
     """
     if tier == 72:
         cols = list(GFS_QPF + GFS_FLOW)
@@ -42,8 +46,10 @@ def features_for(tier: int, table: pd.DataFrame, variant: str = "phase3") -> lis
         cols = list(QPF + FLOW)
         if tier in (24, 48):
             cols += list(GFS_QPF)
-    if variant in ("own", "with_nbm"):
+    if variant in ("own", "with_nbm", "european"):
         cols += list(GEFS + SPREAD) + (list(LAGGED) if tier == 24 else [])
+    if variant == "european" and tier in EUROPEAN_TIERS:
+        cols += list(EUROPEAN)
     if variant == "with_nbm":
         cols += list(NBM)
     return [c for c in cols if c in table.columns and table[c].notna().any()]

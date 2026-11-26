@@ -17,7 +17,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from ..fcst import archive, grib
+from ..fcst import archive, ecmwf, grib
 from ..model import exposure, extended, precip
 from ..model import zones as model_zones
 from ..model.snowlevel import KELVIN, at_elevation, snow_fraction
@@ -210,6 +210,26 @@ def blend_for(gefs_run: pd.Timestamp) -> tuple[pd.Timestamp, dict | None]:
     return gefs_run, None
 
 
+def european_for(gefs_run: pd.Timestamp, now: pd.Timestamp | None = None) -> tuple[pd.Timestamp, dict | None]:
+    """The European ensemble run to go with a GEFS run. Live, the newest 00z or 12z run that is
+    all out (about 7 h 45 min after it starts), which is never older than the pairing the model was
+    fitted with. For a replay of an old run, the run twelve hours before it, as fitted. The
+    outlook stands without it: the model was fitted with gaps in this input."""
+    now = now or now_utc()
+    live = pd.Timedelta(0) <= now - gefs_run <= LIVE_WITHIN
+    first = (now - ecmwf.OUT_AFTER if live else gefs_run - pd.Timedelta(hours=extended.EUROPEAN_LAG_H)).floor("12h")
+    for back in range(3 if live else 1):
+        run = first - pd.Timedelta(hours=12 * back)
+        try:
+            if ecmwf.fetch(run) != "absent":
+                d = ecmwf.load(run)
+                if d is not None:
+                    return run, d
+        except Exception:
+            continue
+    return gefs_run, None
+
+
 def day_wind(w: dict | None, r: int, c: int, first_hour: int) -> tuple[float, float] | None:
     """(direction the wind blows from, speed in m/s) near 600 mb for the 24 hours starting `first_hour`
     hours into a run, from the ensemble-mean wind. Members that disagree on direction cancel in the
@@ -244,6 +264,8 @@ def ensemble_days(resort: Resort, run: pd.Timestamp, starts: list[pd.Timestamp])
     except Exception:
         winds = None
     nr, nc = grib.nearest(nb["lat"], nb["lon"], target["lat"], target["lon"]) if nb is not None else (0, 0)
+    ec_run, ec = european_for(run)
+    ew = ecmwf.weights(ec["lat"], ec["lon"], target["lat"], target["lon"]) if ec is not None else None
     out = {}
     for start in starts:
         first = int((start - run) / pd.Timedelta(hours=1))
@@ -251,6 +273,7 @@ def ensemble_days(resort: Resort, run: pd.Timestamp, starts: list[pd.Timestamp])
         if f is None or not np.isfinite([f["gefs_mean_prev"], f["gefs_mean_next"]]).all():
             continue
         f.update(extended.blend_features(nb, nr, nc, int((start - blend_run) / pd.Timedelta(hours=1)) if nb is not None else -1))
+        f.update(ecmwf.features(ec, ew, int((start - ec_run) / pd.Timedelta(hours=1)) if ec is not None else -1))
         p = extended.predict(f)
         b0 = int((start - blend_run) / pd.Timedelta(hours=1)) if nb is not None else -1
         keys = [f"asnow_{b0 + k:03d}" for k in (6, 12, 18, 24)]
@@ -260,6 +283,7 @@ def ensemble_days(resort: Resort, run: pd.Timestamp, starts: list[pd.Timestamp])
         timing = [float(nb[k][nr, nc]) for k in six] if nb is not None and all(k in nb for k in six) else [float(d[k][r, c]) for k in gefs6] if all(k in d for k in gefs6) else []
         out[start] = {**p, "late": late_share(timing), "lead_h": first + 24, "lead_day": f["lead_day"], "t700": f["t700"], "raw": f["gefs_mean"], "blend": f.get("nbm_qpf", np.nan), "blend_snow_in": blend_snow,
                       "blend_run": blend_run.isoformat() if nb is not None else None, "wind": day_wind(winds, r, c, first),
+                      "european": f["ec_mean"], "european_run": ec_run.isoformat() if ec is not None else None,
                       "per_inch": gauge_per_inch(fit, resort, f["t700"])}
     return out
 
@@ -528,7 +552,8 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
             row.update({"available": True, "source": "ensemble", "wind": wind_note, "issued": run.isoformat(), "lead_day": w["lead_day"], "quality": density_word(ratio), "ratio": round(ratio, 1),
                         "skill_pct": skill["by_lead"][str(w["lead_day"])]["skill_pct"],
                         "blend_snow_in": None if w.get("blend_snow_in") is None else round(w["blend_snow_in"], 1),
-                        "blend_water_in": None if not np.isfinite(w.get("blend", np.nan)) else round(float(w["blend"]), 2)})
+                        "blend_water_in": None if not np.isfinite(w.get("blend", np.nan)) else round(float(w["blend"]), 2),
+                        "european_water_in": None if not np.isfinite(w.get("european", np.nan)) else round(float(w["european"]), 2)})
         if row["available"]:
             conv = {z["id"]: float(pi[cells["zone"] == index[z["id"]]].mean()) for z in zones}
             if row["source"] == "ensemble":
@@ -595,8 +620,9 @@ def build(resort: Resort | None = None, now: pd.Timestamp | None = None, write: 
         blocks.append({"name": label, "word": "expected", "first": a, "last": b, "zones": z})
 
     blend_runs = sorted({e["blend_run"] for e in ens.values() if e.get("blend_run")})
+    european_runs = sorted({e["european_run"] for e in ens.values() if e.get("european_run") and np.isfinite(e.get("european", np.nan))})
     out = {"resort": resort.name, "headline_zone": head, "updated": now.isoformat(timespec="minutes"), "ensemble_run": run.isoformat(),
-           "blend_run": blend_runs[-1] if blend_runs else None,
+           "blend_run": blend_runs[-1] if blend_runs else None, "european_run": european_runs[-1] if european_runs else None,
            "next_update": (run + pd.Timedelta(hours=CYCLE_H + 5, minutes=40)).isoformat(timespec="minutes"), "reference": ref.isoformat(),
            "days": days, "blocks": blocks, "total": total, "map": bool(write and fields), "map_lead": bool(write and fields), "zones": [{"id": z["id"], "name": z["name"]} for z in zones],
            "skill": {k: {x: v[x] for x in ("skill_pct", "mae", "average_for_the_month_mae", "inside_10_90_pct", "n")} for k, v in skill["by_lead"].items()},

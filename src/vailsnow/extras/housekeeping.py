@@ -116,6 +116,7 @@ def usage() -> list[dict]:
         ("National Blend, long range", c / "nbm_240", "grows about 40 MB a year after pruning; training data"),
         ("National Blend and NWS, days 1 to 3", c / "nbm", "one-off"), ("NWS official grids", c / "ndfd", "one-off"),
         ("GEFS ensemble, long range", c / "gefs_240", "grows about 40 MB a year; training data"),
+        ("European ensemble, window around the mountain", c / "ecens", "grows about 20 MB a year; training data"),
         ("Terrain, models and tables", d / "terrain", "one-off"), ("Fitted models and scores", d / "model", "rewritten on retrain"),
         ("Map forecasts", web_data_dir(), f"last {KEEP_RUN_DAYS} days kept"),
         ("SNODAS depth windows", c / "snodas_live", f"last {KEEP_SNODAS_DAYS} days kept"),

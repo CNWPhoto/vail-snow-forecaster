@@ -1,6 +1,6 @@
 # Vail Pinpoint Snow Forecaster: project summary
 
-Written 2026-11-24, four days after the project began from a one-page brief. This is my own account: what stands out, what you steered, what I think is good, what I would fix next.
+Written 2026-11-24, four days after the project began from a one-page brief. Updated 2026-11-26 when the European ensemble was added. This is my own account: what stands out, what you steered, what I think is good, what I would fix next.
 
 ## What it is
 
@@ -8,15 +8,15 @@ A snowfall forecast for Vail Mountain that works at the scale of a zone or a sin
 
 | | |
 |---|---|
-| Code | About 8,800 lines of Python, 840 of front end, 198 tests |
-| Data | 58 GB, all free and public: SNOTEL, HRRR, GFS, GEFS, National Blend, NWS grids, ERA5, PRISM, SNODAS, USGS lidar, OpenStreetMap, airport stations |
+| Code | About 11,000 lines of Python, 840 of front end, 220 tests |
+| Data | 58 GB, all free and public: SNOTEL, HRRR, GFS, GEFS, the European (ECMWF) ensemble, National Blend, NWS grids, ERA5, PRISM, SNODAS, USGS lidar, OpenStreetMap, airport stations |
 | Runs | Unattended on GitHub Actions, free for a public repository: map once a day, 10-day outlook five times, alerts at 9:45 pm and 5:05 am. Nothing runs at home |
 | Live | https://cnwphoto.github.io/vail-snow-forecaster/ and as build 005 on https://purposebuilt.studio |
 | Not done | Alerts go to the map banner and a log, not a phone |
 
 ## The most striking details
 
-**It ties the National Weather Service's best blend, on a laptop.** Tested on winters it never saw, the day-ahead forecast misses by 0.93 in of snow at mid-mountain. The National Blend of Models misses by 0.92, the official NWS forecast by 0.99, raw HRRR by 1.00. At three days it is ahead of all three (1.10 against 1.16). That is a tie, not a win, and the write-ups say so.
+**It ties the National Weather Service's best blend, on a laptop.** Tested on winters it never saw, the day-ahead forecast misses by 0.91 in of snow at mid-mountain. The National Blend of Models misses by 0.92, the official NWS forecast by 0.99, raw HRRR by 1.00. At three days it is ahead of all three (1.06 against 1.16). (Before the European ensemble was added on 2026-11-26 these were 0.93 and 1.10.) That is a tie, not a win, and the write-ups say so.
 
 **The gauge was lying about when it snowed.** The SNOTEL gauge rises a tenth of an inch at a time, and the tick often lands a day or more after the storm. On 211 of 294 single-tick days the depth sensor beside it showed no new snow. The model had learned from this that a bone-dry day carries a 1-in-4 chance of light snow. You spotted the symptom; the cause was in the instrument.
 
@@ -26,7 +26,7 @@ A snowfall forecast for Vail Mountain that works at the scale of a zone or a sin
 
 **The forecasts people trust run high far out.** When the National Blend called for 0.30 to 0.45 in of water four to six days ahead, the gauge averaged 0.27, and nothing fell on 23% of those days. Adding the Blend to this model bought one point of skill at day 4 and nothing beyond.
 
-**Skill has a visible edge.** Against simply quoting the average for the date, the forecast is 27% better at day 4, 16% at day 7 and 8% at day 10. The app shows that fade next to each day.
+**Skill has a visible edge.** Against simply quoting the average for the date, the forecast is 28% better at day 4, 17% at day 7 and 8% at day 10. The app shows that fade next to each day.
 
 **Textbook physics lost.** I built the standard model of air lifted over terrain to place snow across the mountain. It added no skill at any station and was left out. A long-term precipitation map did the job better.
 
@@ -51,6 +51,7 @@ Most of the important corrections started with something you noticed.
 | Add base depth | A depth layer from SNODAS tied to the SNOTEL sensor |
 | The Plan tab isn't helpful; the February replay is confusing | Both removed |
 | Make sure data doesn't pile up | A daily clean-up; growth cut from about 9 GB a year to half a gigabyte |
+| Add another model for the bigger storms | The European ensemble as an input on days 1 and 3 to 10; big days called about 10% closer three to five days out, and still under-called |
 
 You also made three calls that shaped the build: dropping the depth logger, using the public 1.5 degree ERA5 copy, and keeping the 48 GB history.
 
@@ -63,14 +64,43 @@ You also made three calls that shaped the build: dropping the depth logger, usin
 
 ## What I would improve
 
-1. **Big days are under-called.** On the 60 biggest days in the record, the likely number missed by about 5 in; raw HRRR missed by less. This is the weakness that matters most on a powder morning, and nothing I tried fixed it.
+1. **Big days are under-called.** On the 60 biggest days in the record (about 10 in), the day-ahead likely number misses by 4.9 in; raw HRRR misses by 3.8. This is the weakness that matters most on a powder morning. Adding the European ensemble (2026-11-26) narrowed it a little and did not fix it: see below.
 2. **Nothing measures snow by zone.** Every difference between zones rests on a long-term map and on wind loading tuned to one person. A few dozen depth readings a season, from you or a stake camera you check by hand, would turn that from a claim into something scored.
 3. **Wind loading is tuned to four spots.** It now moves whole-zone averages by up to 20%. More places you know, especially ones that get stripped, would show whether that is right.
 4. **The 24, 48 and 72 hour views can still read "0 to X"** when a storm inside three days is uncertain. The 10-day view no longer does: a day with a fair chance shows the range to expect if it snows, and a day with a low chance reads 0.
 5. **The map updates once a day.** An evening rebuild from the 5 pm model run is built for alerts but not for the map.
-6. **The European ensemble isn't in it.** It is free and would likely help most at days 6 to 10.
+6. **Day 2 does not use the European ensemble,** because it added nothing there when tested. January to April 2023 is missing from its history: the only public copy of those months refused the downloads.
 7. **A failed scheduled run is easy to miss.** GitHub emails the repository owner when a job fails, and the page shows a stale time. GitHub also pauses schedules in a public repository after 60 days without activity; I have not confirmed that the jobs' own commits count as activity.
 8. **The zone boundaries are still my draft.** Every card and outline uses them, and you haven't reviewed them.
+
+## The European ensemble (added 2026-11-26)
+
+You asked for another model to help with the bigger storms. The European Centre's ensemble (ECMWF) is now an input on day 1, day 3 and days 4 to 10. It is free under an attribution licence, and its forecasts back to 2018 were used to refit the models. Each winter was again forecast by a model that never saw it.
+
+| | Before | After |
+|---|---|---|
+| Day 1 typical miss, inches of snow | 0.93 | 0.91 (National Blend 0.92) |
+| Day 2 | 1.00 | 1.00 (not used: no gain) |
+| Day 3 | 1.10 | 1.06 (National Blend 1.16) |
+| Days 4, 5, 6: better than the average for the date | 27%, 21%, 18% | 28%, 24%, 21% |
+| Days 7 to 10 | 16%, 12%, 9%, 8% | 17%, 12%, 10%, 8% |
+| Days 4 to 7 added up, miss in water | 0.229 in | 0.213 in |
+| When a 30% or better chance of a 4 in day was called 6 days out, it came | 36% of the time | 43% |
+
+**Big days, the reason you asked.** On days that went on to bring about 10 in:
+
+| Forecast made | Likely or expected amount, before | After | Still short by |
+|---|---|---|---|
+| 1 day ahead (60 days) | missed by 5.2 in | 4.9 in | raw HRRR misses by 3.8 |
+| 3 days ahead (41 days) | missed by 6.9 in | 6.2 in | raw GFS misses by 5.0 |
+| 4 to 5 days ahead (84 days) | expected 3.9 in, high end 7.8 | expected 4.6 in, high end 9.1 | 9.7 in fell |
+| 8 to 10 days ahead (123 days) | expected 2.0 in | 2.2 in | 9.8 in fell |
+
+- **It helps most at 3 to 6 days,** where it is the better of the two global ensembles: its raw forecast tracks the gauge more closely than GEFS at every lead from 4 to 10 days.
+- **It does not fix big days.** The model still hedges toward ordinary amounts, because most forecasts of a big day do not produce one. The high end is the number to read when a storm is on the way.
+- **The gains are small and partly inside the noise.** The day 4 to 10 gain is at the edge of what six winters can show (the 95% range of the improvement just reaches zero). The day 1 and day 3 gains are about one point of skill each and not statistically firm. Storm totals from day-ahead forecasts were a touch worse (0.43 in miss against 0.42 over 28 storms).
+- **Its fifty members' spread and wet end added nothing** beyond their average, so only the average is used.
+- **Day 2 was left alone** because the test showed no gain there.
 
 ## Other thoughts
 
