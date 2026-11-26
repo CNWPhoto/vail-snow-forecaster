@@ -456,6 +456,9 @@ class Weather:
 
 
 def daily_flow() -> pd.DataFrame | None:
-    """ERA5 daily mean flow over Vail, for dates before the HRRR archive begins."""
-    p = data_dir() / "upper" / "daily_flow.parquet"
-    return pd.read_parquet(p) if p.exists() else None
+    """ERA5 daily mean flow over Vail, for dates before the HRRR archive begins. On this computer
+    it is where the Phase 2 build left it; the scheduled job gets a copy with the state's grid."""
+    for p in (data_dir() / "upper" / "daily_flow.parquet", data_dir() / "state" / "daily_flow.parquet"):
+        if p.exists():
+            return pd.read_parquet(p)
+    return None
