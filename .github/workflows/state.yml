@@ -1,0 +1,120 @@
+# The hourly mountain state for the ski game: what is on the ground now, cell by cell.
+# Published under mountain/ on the same gh-pages site as the forecast map.
+#
+# It does not wait behind the forecast jobs, and cannot overwrite them. Both publish by replacing
+# the gh-pages commit, so this job takes the site as it stands at the moment of publishing, swaps
+# in only its own mountain/ folder, and pushes on the condition that nobody else has published in
+# between. If somebody has, it starts again from the newer site. The other way round, a forecast job
+# that was already running publishes from the copy it took when it began and can set mountain/ back
+# by one run; the next hour puts it right, and latest.json always matches its own textures.
+#
+# Nothing depends on a run happening on time: each run steps from its last checkpoint to now,
+# so a late or skipped hour is covered by the next one. If the cache holding the checkpoint is
+# lost, the state is rebuilt from ten days of gauge and model data (a few minutes).
+#
+# The grid and terrain layers the job needs (about 15 MB) are a release asset named by STATE_TAG,
+# cut on a computer that has the ski game's data: `vailsnow state-grid`.
+name: Mountain state
+
+on:
+  schedule:
+    - cron: "22 * * 1-5,10-12 *"     # every hour, October to May. HRRR runs reach the public copy about 2 h after issue
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run
+        type: choice
+        options: [state, days]
+        default: state
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vailsnow-state            # its own queue: one state job at a time, never in line with the forecast jobs
+  cancel-in-progress: false
+
+env:
+  RUNTIME_TAG: runtime-v1
+  STATE_TAG: state-static-v1
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { ref: gh-pages, path: site }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install uv
+
+      - name: Reuse installed packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+      - run: uv sync --frozen --no-dev
+
+      - name: Reuse the models and terrain
+        id: runtime
+        uses: actions/cache@v4
+        with:
+          path: runtime
+          key: ${{ env.RUNTIME_TAG }}-${{ env.STATE_TAG }}
+      - name: Download the models and terrain
+        if: steps.runtime.outputs.cache-hit != 'true'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release download "$RUNTIME_TAG" --pattern runtime.tar.gz
+          mkdir -p runtime && tar -xzf runtime.tar.gz -C runtime && rm runtime.tar.gz
+          gh release download "$STATE_TAG" --pattern state_static.tar.gz
+          mkdir -p runtime/state && tar -xzf state_static.tar.gz -C runtime/state && rm state_static.tar.gz
+
+      - name: Reuse the checkpoint, gauge years and recent model runs
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache/state_carry
+            cache/snotel
+            cache/hrrr_zarr
+            cache/hrrr_state
+            cache/snodas_live
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+
+      - name: Run it
+        run: |
+          mkdir -p site/data site/mountain
+          export VAILSNOW_DATA_DIR="$PWD/runtime" VAILSNOW_CACHE_DIR="$PWD/cache" VAILSNOW_WEB_DATA_DIR="$PWD/site/data"
+          case "${{ github.event_name == 'workflow_dispatch' && inputs.job || 'state' }}" in
+            state) uv run --no-sync vailsnow state ;;
+            days)  uv run --no-sync vailsnow state-days ;;
+          esac
+
+      - name: Publish the state files
+        run: |
+          mv site/mountain mountain.new
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4 5 6; do
+            # the site as it is right now, with only mountain/ replaced
+            git fetch -q --depth 1 origin gh-pages
+            tip=$(git rev-parse FETCH_HEAD)
+            git checkout -q -f --detach FETCH_HEAD
+            git clean -q -fdx
+            rm -rf mountain && cp -R ../mountain.new mountain
+            touch .nojekyll
+            git checkout -q --orphan "publish-$attempt"
+            git add -A
+            git commit -q -m "Mountain state $(date -u +%Y-%m-%dT%H:%MZ)"
+            # refused if gh-pages is no longer the commit just fetched: someone else published, so go round again
+            if git push -q --force-with-lease="gh-pages:$tip" origin HEAD:gh-pages; then
+              echo "published on attempt $attempt"; exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          echo "the site kept changing; this hour is left for the next run" >&2
+          exit 1

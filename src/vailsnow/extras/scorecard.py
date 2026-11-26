@@ -317,6 +317,11 @@ def scorecard(resort: Resort, rec: dict, log: pd.DataFrame | None = None, now: p
         card["long_range"] = long_range(rec, season)
     except Exception as e:                       # the long-range model may not be built yet
         card["long_range"] = {"by_lead": {}, "held_out": {}, "error": f"{type(e).__name__}: {e}"}
+    try:                                         # the hourly mountain state beside the depth sensor (state/score.py)
+        from ..state import score as state_score
+        card["state"] = state_score.block(now=now)
+    except Exception as e:
+        card["state"] = {"n": 0, "error": f"{type(e).__name__}: {e}"}
     if log.empty:
         return card
     v = verify(log, rec)
