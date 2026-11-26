@@ -1,8 +1,13 @@
 # The hourly mountain state for the ski game: what is on the ground now, cell by cell.
 # Published under mountain/ on the same gh-pages site as the forecast map.
 #
-# It shares the forecast jobs' concurrency group because both replace the gh-pages commit:
-# two at once would overwrite each other. A run that has to wait simply publishes a little later.
+# It does not wait behind the forecast jobs, and cannot overwrite them. Both publish by replacing
+# the gh-pages commit, so this job takes the site as it stands at the moment of publishing, swaps
+# in only its own mountain/ folder, and pushes on the condition that nobody else has published in
+# between. If somebody has, it starts again from the newer site. The other way round, a forecast job
+# that was already running publishes from the copy it took when it began and can set mountain/ back
+# by one run; the next hour puts it right, and latest.json always matches its own textures.
+#
 # Nothing depends on a run happening on time: each run steps from its last checkpoint to now,
 # so a late or skipped hour is covered by the next one. If the cache holding the checkpoint is
 # lost, the state is rebuilt from ten days of gauge and model data (a few minutes).
@@ -26,7 +31,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: vailsnow-publish
+  group: vailsnow-state            # its own queue: one state job at a time, never in line with the forecast jobs
   cancel-in-progress: false
 
 env:
@@ -41,9 +46,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with: { ref: gh-pages, path: site }
-      - uses: actions/checkout@v4
-        with: { ref: state, path: state }
-
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install uv
@@ -84,30 +86,35 @@ jobs:
 
       - name: Run it
         run: |
-          # the 5 am line set beside the depth sensor lives with the other logs on the state branch
-          mkdir -p state/log site/data site/mountain
-          rm -rf runtime/log && ln -s "$PWD/state/log" runtime/log
+          mkdir -p site/data site/mountain
           export VAILSNOW_DATA_DIR="$PWD/runtime" VAILSNOW_CACHE_DIR="$PWD/cache" VAILSNOW_WEB_DATA_DIR="$PWD/site/data"
           case "${{ github.event_name == 'workflow_dispatch' && inputs.job || 'state' }}" in
             state) uv run --no-sync vailsnow state ;;
             days)  uv run --no-sync vailsnow state-days ;;
           esac
 
-      - name: Save the log
-        run: |
-          cd state
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet || { git commit -q -m "state $(date -u +%Y-%m-%dT%H:%MZ)" && git push -q origin HEAD:state; }
-
       - name: Publish the state files
         run: |
-          touch site/.nojekyll
+          mv site/mountain mountain.new
           cd site
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -q --orphan publish
-          git add -A
-          git commit -q -m "Mountain state $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -q -f origin publish:gh-pages
+          for attempt in 1 2 3 4 5 6; do
+            # the site as it is right now, with only mountain/ replaced
+            git fetch -q --depth 1 origin gh-pages
+            tip=$(git rev-parse FETCH_HEAD)
+            git checkout -q -f --detach FETCH_HEAD
+            git clean -q -fdx
+            rm -rf mountain && cp -R ../mountain.new mountain
+            touch .nojekyll
+            git checkout -q --orphan "publish-$attempt"
+            git add -A
+            git commit -q -m "Mountain state $(date -u +%Y-%m-%dT%H:%MZ)"
+            # refused if gh-pages is no longer the commit just fetched: someone else published, so go round again
+            if git push -q --force-with-lease="gh-pages:$tip" origin HEAD:gh-pages; then
+              echo "published on attempt $attempt"; exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          echo "the site kept changing; this hour is left for the next run" >&2
+          exit 1

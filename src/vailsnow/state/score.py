@@ -16,16 +16,46 @@ import json
 import numpy as np
 import pandas as pd
 
-from ..resort import data_dir
+from ..resort import cache_dir, state_dir
 
 SNOW_DAY_WATER_IN = 0.2
 
 
-def read(path=None) -> pd.DataFrame:
-    path = path or data_dir() / "log" / "state.jsonl"
+def kept_log():
+    """The copy kept with the state's checkpoint."""
+    return cache_dir() / "state_carry" / "scores.jsonl"
+
+
+def published_log():
+    """The copy published with the state files, where the forecast's scorecard reads it."""
+    return state_dir() / "scores.jsonl"
+
+
+def _lines(path) -> dict[str, dict]:
     if not path.exists():
-        return pd.DataFrame()
-    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+        return {}
+    return {d["time"]: d for d in (json.loads(line) for line in path.read_text().splitlines() if line.strip())}
+
+
+def record(new: list[dict]) -> int:
+    """Add the morning lines not already logged. Returns how many were new.
+
+    The log is kept in two places and each run writes both from their union, so losing either one
+    loses nothing: the checkpoint's cache can be evicted, and the published copy can be set back
+    an hour when a forecast job publishes the site from an older copy."""
+    have = {**_lines(published_log()), **_lines(kept_log())}
+    added = [d for d in new if d and d["time"] not in have]
+    have.update({d["time"]: d for d in added})
+    text = "".join(json.dumps(have[t], separators=(",", ":")) + "\n" for t in sorted(have))
+    if have:
+        for path in (kept_log(), published_log()):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+    return len(added)
+
+
+def read(path=None) -> pd.DataFrame:
+    rows = list(({**_lines(published_log()), **_lines(kept_log())} if path is None else _lines(path)).values())
     d = pd.DataFrame(rows)
     if d.empty:
         return d

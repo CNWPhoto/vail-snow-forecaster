@@ -22,8 +22,8 @@ import pandas as pd
 from pyproj import Transformer
 
 from ..model import settle
-from ..resort import Resort, cache_dir, data_dir, load_resort, state_dir
-from . import drivers, engine, grid, publish
+from ..resort import Resort, cache_dir, load_resort, state_dir
+from . import drivers, engine, grid, publish, score
 
 NUDGE_HOURS = 72.0            # total depth closes this share of its gap to the sensor each hour: 1 / NUDGE_HOURS
 SCORE_HOUR_UTC = 12           # 5 am Mountain Standard Time: when the state is set beside the sensor
@@ -36,10 +36,6 @@ def now_utc() -> pd.Timestamp:
 
 def checkpoint_path(resort: Resort) -> Path:
     return cache_dir() / "state_carry" / f"{resort.id}_checkpoint.npz"
-
-
-def score_log() -> Path:
-    return data_dir() / "log" / "state.jsonl"
 
 
 def setup(resort: Resort) -> tuple[dict, engine.Ground]:
@@ -123,20 +119,6 @@ def _score_line(s: engine.State, rec: dict, gauge_rc: tuple[int, int], check: di
             "gauge_water_24h_in": None if water.isna().any() else round(float(water.sum()), 2)}
 
 
-def _append_scores(lines: list[dict]) -> int:
-    path = score_log()
-    seen = set()
-    if path.exists():
-        seen = {json.loads(l)["time"] for l in path.read_text().splitlines() if l.strip()}
-    new = [l for l in lines if l and l["time"] not in seen]
-    if new:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a") as fh:
-            for l in new:
-                fh.write(json.dumps(l, separators=(",", ":")) + "\n")
-    return len(new)
-
-
 def prune_model_cache(now: pd.Timestamp) -> None:
     """On a scheduled runner (CI is set), drop weather-model files too old to be stepped through
     again, so the job's cache stays small. On this computer nothing is removed: the same folder
@@ -203,7 +185,7 @@ def live(resort: Resort | None = None, now: pd.Timestamp | None = None, write: b
         if not (state_dir() / "grid.json").exists():
             publish.static_files(resort, layers)
         result["latest"] = publish.publish_hour(s, ground, resort, block, now)
-        result["scored"] = _append_scores(scores)
+        result["scored"] = score.record(scores)
 
     # tomorrow morning at first chair, from the median forecast
     tz = cfg["operations"]["timezone"]

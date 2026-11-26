@@ -21,6 +21,7 @@ It is served by GitHub Pages, which sends `Access-Control-Allow-Origin: *` (so t
 | `state/index.json` | Which hours are on the site (for a time-lapse) |
 | `state/tomorrow.json` | The same for tomorrow at first chair, built from the median forecast |
 | `days.json`, `days/<id>/` | Notable past days rebuilt from the record |
+| `scores.jsonl` | One line per morning: what the state held at the gauge beside what the depth sensor read. The Score tab is built from it |
 
 `latest.json` is the only file rewritten in place. It names the textures inside its own hour's folder, and an hour's folder is never rewritten. A game that reads `latest.json` and then the textures it names cannot end up with images from two different hours.
 
@@ -137,3 +138,5 @@ vailsnow state-days      # rebuild the notable past days
 ```
 
 On GitHub the hourly job is `.github/workflows/state.yml`. It needs a release asset named `state-static-v1` holding `state_static.tar.gz` (the two `vail_static` files from `data/state/`). It keeps a checkpoint in the Actions cache; if that is lost it rebuilds from ten days of data. A late or skipped run changes nothing, because each run steps from the checkpoint to the present.
+
+The state job has its own queue and never waits behind the forecast jobs. Both publish by replacing the one commit on `gh-pages`, so the state job takes the site as it stands when it publishes, swaps in only `mountain/`, and pushes on the condition that nobody else has published in between; if somebody has, it starts again from the newer site. It therefore cannot overwrite a forecast. A forecast job that was already running can set `mountain/` back by one run, which the next hour puts right.
