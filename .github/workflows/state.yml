@@ -13,7 +13,8 @@
 # lost, the state is rebuilt from ten days of gauge and model data (a few minutes).
 #
 # The grid and terrain layers the job needs (about 15 MB) are a release asset named by STATE_TAG,
-# cut on a computer that has the ski game's data: `vailsnow state-grid`.
+# cut on a computer that has the ski game's data: `vailsnow state-grid`. The same file carries the
+# ERA5 daily wind table, which the past days before the HRRR archive need.
 name: Mountain state
 
 on:
@@ -36,12 +37,12 @@ concurrency:
 
 env:
   RUNTIME_TAG: runtime-v1
-  STATE_TAG: state-static-v1
+  STATE_TAG: state-static-v2
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4

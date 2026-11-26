@@ -160,6 +160,7 @@ def live(resort: Resort | None = None, now: pd.Timestamp | None = None, write: b
     if s is None:
         started = "cold start"
         s = cold_start(resort, ground, rec, hour - pd.Timedelta(days=float(cfg["spin_up_days"])))
+        model.prefetch(s.time, hour)
     first = s.time
     scores: list[dict] = []
     saved = {"at": None}
@@ -224,6 +225,7 @@ def past(resort: Resort, when: pd.Timestamp, spin_up_days: float | None = None, 
     model = drivers.Model(resort, now_utc(), fetch=fetch)
     weather = drivers.Weather(resort, layers, rec, model, now=None, daily_flow=drivers.daily_flow())
     s = cold_start(resort, ground, rec, start)
+    model.prefetch(start, when + pd.Timedelta(hours=1))
     s, info = advance(s, when, weather, ground, past_cfg, settle.fitted_rates(), rec)
     _, next_info = weather.forcing(when + pd.Timedelta(hours=1))
     return s, ground, info, next_info, rec

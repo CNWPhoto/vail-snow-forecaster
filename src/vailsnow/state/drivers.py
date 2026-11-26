@@ -20,6 +20,7 @@ temperature at each cell's elevation, and the fitted snow-to-liquid ratio.
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import joblib
@@ -122,22 +123,39 @@ class Model:
             self._terrain = hrrr.terrain()
         return self._terrain
 
+    def _download(self, run: pd.Timestamp) -> None:
+        """Get a run's files onto disk if they are not there and the public copy has them."""
+        if not self.fetch:
+            return
+        if not hrrr.run_path(run).exists() and hrrr.FIRST_RUN <= run and run + PUBLISH_LAG <= self.now and published(run):
+            hrrr.fetch_run(run)
+        if hrrr.run_path(run).exists() and not extra_path(run).exists():
+            try:
+                fetch_extra(run)
+            except Exception:                   # cloud, visibility and gusts are extras: the state runs without them
+                pass
+
+    def prefetch(self, first: pd.Timestamp, last: pd.Timestamp, workers: int = 8) -> int:
+        """Download every long run that covers the hours from `first` to `last`, several at a time.
+        Stepping through ten days needs about forty runs; one after another that takes many minutes."""
+        newest = min(pd.Timestamp(last), self.now - PUBLISH_LAG).floor("6h")
+        runs = [r for r in pd.date_range((pd.Timestamp(first) - pd.Timedelta(hours=6)).floor("6h"), newest, freq="6h")
+                if r >= hrrr.FIRST_RUN and not (hrrr.run_path(r).exists() and extra_path(r).exists())] if self.fetch else []
+        if runs:
+            with ThreadPoolExecutor(workers) as pool:
+                list(pool.map(self._download, runs))
+        return len(runs)
+
     def _load(self, run: pd.Timestamp) -> dict | None:
         if run in self._runs:
             return self._runs[run]
         d = None
-        if not hrrr.run_path(run).exists() and self.fetch and hrrr.FIRST_RUN <= run and run + PUBLISH_LAG <= self.now and published(run):
-            hrrr.fetch_run(run)
+        self._download(run)
         if hrrr.run_path(run).exists():
             d = hrrr.load_run(run)
             if d is not None and any(k not in d for k in ("apcp", "t2", "td2", "u700", "v700", "u500", "v500", "t700", "t500", "td700")):
                 d = None
         if d is not None:
-            if self.fetch and not extra_path(run).exists():
-                try:
-                    fetch_extra(run)
-                except Exception:
-                    pass
             d.update(load_extra(run))
         self._runs[run] = d
         return d
@@ -438,6 +456,9 @@ class Weather:
 
 
 def daily_flow() -> pd.DataFrame | None:
-    """ERA5 daily mean flow over Vail, for dates before the HRRR archive begins."""
-    p = data_dir() / "upper" / "daily_flow.parquet"
-    return pd.read_parquet(p) if p.exists() else None
+    """ERA5 daily mean flow over Vail, for dates before the HRRR archive begins. On this computer
+    it is where the Phase 2 build left it; the scheduled job gets a copy with the state's grid."""
+    for p in (data_dir() / "upper" / "daily_flow.parquet", data_dir() / "state" / "daily_flow.parquet"):
+        if p.exists():
+            return pd.read_parquet(p)
+    return None

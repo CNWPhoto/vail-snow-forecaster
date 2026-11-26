@@ -137,6 +137,6 @@ vailsnow state           # bring the state up to now and publish latest and tomo
 vailsnow state-days      # rebuild the notable past days
 ```
 
-On GitHub the hourly job is `.github/workflows/state.yml`. It needs a release asset named `state-static-v1` holding `state_static.tar.gz` (the two `vail_static` files from `data/state/`). It keeps a checkpoint in the Actions cache; if that is lost it rebuilds from ten days of data. A late or skipped run changes nothing, because each run steps from the checkpoint to the present.
+On GitHub the hourly job is `.github/workflows/state.yml`. It needs a release asset named `state-static-v2` holding `state_static.tar.gz`: the two `vail_static` files from `data/state/`, and `daily_flow.parquet` from `data/upper/` (ERA5 daily winds, for past days before the HRRR archive). It keeps a checkpoint in the Actions cache; if that is lost it rebuilds from ten days of data. A late or skipped run changes nothing, because each run steps from the checkpoint to the present.
 
 The state job has its own queue and never waits behind the forecast jobs. Both publish by replacing the one commit on `gh-pages`, so the state job takes the site as it stands when it publishes, swaps in only `mountain/`, and pushes on the condition that nobody else has published in between; if somebody has, it starts again from the newer site. It therefore cannot overwrite a forecast. A forecast job that was already running can set `mountain/` back by one run, which the next hour puts right.
