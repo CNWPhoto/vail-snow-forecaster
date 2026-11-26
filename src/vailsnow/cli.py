@@ -47,11 +47,15 @@ def main() -> None:
     pr.add_argument("--dry-run", action="store_true", help="say what would go and remove nothing")
     sub.add_parser("disk", help="what is on disk, largest first, and what grows")
     sub.add_parser("status", help="when each piece last updated, and whether the scheduled jobs are installed")
+    sub.add_parser("state-grid", help="cut the mountain-state grid and its static terrain layers from the ski game's data")
+    sub.add_parser("state", help="bring the hourly mountain state up to now and publish it, with tomorrow morning's preview")
+    sd = sub.add_parser("state-days", help="rebuild the notable past days for the game's day picker")
+    sd.add_argument("--only", help="one day id from the resort file, e.g. 2020-02-07")
     sub.add_parser("baseline-fetch", help="download NBM, NWS official and GFS forecasts as issued since late 2020")
     sub.add_parser("hrrr-fetch", help="download HRRR forecasts as issued for every snow-season day since 2018")
     args = ap.parse_args()
     import sys
-    if not sys.stdout.isatty() and args.cmd in ("forecast", "outlook", "alert", "score"):      # a scheduled run: stamp the log
+    if not sys.stdout.isatty() and args.cmd in ("forecast", "outlook", "alert", "score", "state"):      # a scheduled run: stamp the log
         import datetime as dt
         print(f"\n[{dt.datetime.now().astimezone():%Y-%m-%d %H:%M %Z}] vailsnow {' '.join(sys.argv[1:])}", flush=True)
     if args.cmd == "terrain":
@@ -219,6 +223,29 @@ def main() -> None:
     elif args.cmd == "status":
         from .extras import status
         print(status.report())
+
+    elif args.cmd == "state-grid":
+        from .state import grid, publish
+        resort = load_resort()
+        out = grid.build(resort)
+        files = publish.static_files(resort, grid.load(resort))
+        g = out["grid"]
+        print(f"grid {g['width']} x {g['height']} cells of {g['cell_m']:g} m, {g['crs']}, west {g['west']:g} north {g['north']:g}")
+        print(f"static layers: {out['file']} ({out['mb']} MB); {files['grid']}")
+        print("share of the ski area by terrain class: " + ", ".join(f"{k} {v:.0%}" for k, v in out["inside_share_by_class"].items()))
+        print(f"assumed groomed nightly ({len(out['groomed_runs'])} runs): " + ", ".join(out["groomed_runs"]))
+
+    elif args.cmd == "state":
+        from .state import run as state_run
+        r = state_run.live()
+        print(f"state for {r['time']} UTC, from {r['started_from']} ({r['hours_stepped']} hours stepped; gauge checked to {r['checked_until']})")
+        print(f"  {r['latest']['conditions']}")
+        print(f"  textures {r['latest']['total_kb']} KB in {r['latest']['folder']}; tomorrow: {r['tomorrow'] if isinstance(r['tomorrow'], str) else r['tomorrow']['time']}")
+
+    elif args.cmd == "state-days":
+        from .state import run as state_run
+        for d in state_run.days(only=args.only):
+            print(f"{d['label']}\n  {d['conditions']}")
 
     elif args.cmd == "baseline-fetch":
         from .fcst.archive import run

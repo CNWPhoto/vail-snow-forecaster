@@ -46,6 +46,13 @@ def web_data_dir() -> Path:
     return p if p.is_absolute() else ROOT / p
 
 
+def state_dir() -> Path:
+    """Where the mountain-state files for the ski game are written: beside the map's data folder,
+    so they are published with it (VAILSNOW_STATE_DIR to put them elsewhere)."""
+    p = Path(os.environ.get("VAILSNOW_STATE_DIR", str(web_data_dir().parent / "mountain"))).expanduser()
+    return p if p.is_absolute() else ROOT / p
+
+
 def default_resort() -> str:
     return os.environ.get("VAILSNOW_RESORT", "vail")
 
@@ -86,6 +93,7 @@ class Resort:
     lift_wind: dict | None = None       # gust thresholds for lift holds, and opening hours
     alerts: dict | None = None          # powder-alert thresholds
     view: dict | None = None            # what the map opens on
+    state: dict | None = None           # the hourly mountain state for the ski game (state/)
 
     def source_path(self, key: str) -> Path:
         return game_dir() / self.sources[key]
@@ -115,4 +123,4 @@ def load_resort(resort_id: str | None = None) -> Resort:
     return Resort(raw["id"], raw["name"], raw["epsg"], raw["osm_boundary_name"], raw["region"], raw["fine"],
                   raw["sources"], bands, tuple(raw.get("points", [])), zones,
                   tuple(raw.get("snotel", [])), tuple(raw.get("valley", [])),
-                  raw.get("wind_check"), raw.get("lift_wind"), raw.get("alerts"), raw.get("view"))
+                  raw.get("wind_check"), raw.get("lift_wind"), raw.get("alerts"), raw.get("view"), raw.get("state"))

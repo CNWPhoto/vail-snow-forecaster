@@ -66,6 +66,124 @@ canopy = "data/work/vail/lidar_canopy.npz"
 regional_dem = "data/raw/vail/bg/bg_dem20.tif"
 osm = "data/raw/vail/osm_overpass.json"
 
+# ---------------------------------------------------------------------------
+# Mountain state: the hourly estimate of what is on the ground, published for the ski game.
+# Every number here is a starting prior, not a measurement. See MOUNTAIN_STATE.md.
+# ---------------------------------------------------------------------------
+[state]
+cell = 16.0                       # metres. The grid is the game's own box, so one state cell is 8 x 8 game cells
+keep_hours = 72                   # hourly states kept on the site; older hours are removed
+spin_up_days = 10                 # with no saved state, start this many days back and run forward
+history_cell = 32.0               # the hourly new-snow history behind the 24 h, 72 h and 7 day totals is kept this coarse
+zone_buffer = 150.0               # same footprint as the forecast zones
+
+# When the lifts turn and what is open. NOTHING public and permitted reports grooming or terrain
+# status (the resort's site terms rule out reusing it), so these are edited by hand.
+# Opening day and its 9:00 to 3:30 hours are from news coverage (Nov 2026). Everything else is assumed.
+[state.operations]
+timezone = "America/Denver"
+season = ["2026-11-13", "2027-04-18"]          # closing day ASSUMED
+hours = [9.0, 15.5]                             # early season, local clock
+extended_hours = [8.5, 16.0]                    # ASSUMED from the date below
+extended_from = "2026-12-12"
+weekend = 1.5                                   # how much faster snow is skied off on a weekend
+holiday = 1.9
+holidays = [["2026-11-26", "2026-11-29"], ["2026-12-19", "2027-01-03"], ["2027-01-16", "2027-01-18"], ["2027-02-13", "2027-02-21"]]
+groom_hour = 4                                  # local hour the groomed runs are reset to corduroy
+
+# First day each part of the mountain is open (zone `group` in this file). Before it the terrain
+# is closed: snow piles up there untouched. ASSUMED except the Front Side; edit as terrain opens.
+[state.operations.opens]
+"Front Side" = "2026-11-13"
+"Back Bowls" = "2026-12-11"
+"Blue Sky Basin" = "2026-12-18"
+
+# Powder survival. `hours` is how many lift-served hours it takes for traffic to use up about two
+# thirds of the untracked snow on that kind of ground, at the busiest spots on a weekday.
+[state.survival]
+groomed = 1.5                     # groomers: gone within hours
+run = 2.5                         # ungroomed marked runs
+bowl = 3.5                        # open bowls: about a day
+glade = 10.0                      # open trees
+trees = 30.0                      # tight trees: several days
+out_of_bounds = 150.0             # beyond the ski-area boundary: almost nobody
+shade_slows = 0.5                 # north-facing trees keep snow up to this much longer (0.5 = half as long again)
+trail_reach_m = 200.0             # traffic falls away over this distance from a mapped run
+lift_reach_m = 1200.0             # and, more gently, with distance from the nearest lift top
+far_share = 0.35                  # the least traffic a spot far from any run still sees, as a share
+flat_deg = [3.0, 11.0]            # traffic ramps up from nearly flat ground to this slope
+steep_deg = [38.0, 48.0]          # and falls away again across this range
+groomed_width_m = 40.0            # ground this wide along a groomed run's mapped line counts as groomed
+run_width_m = 50.0
+groomed_difficulty = ["easy", "intermediate"]   # ASSUMED groomed nightly: every green and blue run
+
+# How long untouched snow still skis as fresh. After `fresh_hours` without new snow the fresh
+# layer fades into the base over about `fade_hours`, sooner in the sun and later in shaded trees.
+[state.ageing]
+fresh_hours = 48.0
+fade_hours = 72.0
+shaded_trees_fade_hours = 240.0
+sun_speeds = 1.0                  # a fully sunlit open slope fades this much faster
+
+# Wind moving snow that is already down. The forecast's wind rules are per storm day; here they
+# run every hour, so one hour moves this share of what a day would.
+[state.wind]
+hour_share = 0.085
+hardens_hours = 24.0              # fresh snow gets harder to move over about this long
+
+# Melt, by degree-hours above freezing: about 0.15 in of water per degree C per day (4 mm), mid-range for snow.
+[state.melt]
+in_per_degree_hour = 0.006
+
+# Surface crust. Sun crust needs clear sky, direct sun on the slope and air near freezing;
+# melt-freeze needs a thaw (or rain) followed by a freeze. An inch of new snow buries either.
+[state.crust]
+sun_dose = 4.0                    # clear, sunlit hours (weighted by how squarely the sun hits the slope) to form a sun crust
+sun_min_temp_c = -6.0
+thaw_degree_hours = 6.0           # degree-hours above freezing to wet the surface
+refreeze_c = -1.0
+bury_in = 1.0
+
+# Snowfall rate classes for the weather block, inches per hour at mid-mountain (lower bounds).
+[state.intensity]
+none = 0.0
+flurries = 0.05
+light = 0.2
+moderate = 0.5
+heavy = 1.0
+dumping = 2.0
+
+# Notable past days rebuilt from the record, for the game's day picker. `time` is the UTC hour shown
+# (Mountain Standard Time is 7 hours behind). The first two were asked for by name; the other three
+# were picked from the gauge record and the archived model runs (see MOUNTAIN_STATE.md for how).
+[[state.days]]
+id = "2020-02-07"
+label = "Feb 7, 2020: the deep day"
+kind = "deep"
+time = "2020-02-07 16:00"
+[[state.days]]
+id = "2014-01-31"
+label = "Jan 31, 2014: 19 inches overnight"
+kind = "deep"
+time = "2014-01-31 16:00"
+note = "Before the HRRR archive begins: rebuilt from the gauge and ERA5 only, so wind and cloud are coarse."
+[[state.days]]
+id = "2019-03-04"
+label = "Mar 4, 2019: bluebird after the storm"
+kind = "bluebird"
+time = "2019-03-04 17:00"
+[[state.days]]
+id = "2024-01-31"
+label = "Jan 31, 2024: two weeks without snow"
+kind = "dry"
+time = "2024-01-31 19:00"
+spin_up_days = 24                 # start before the last storm, so what is left of it in the trees is there to find
+[[state.days]]
+id = "2022-12-22"
+label = "Dec 22, 2022: the arctic front, ridge-top gale"
+kind = "wind"
+time = "2022-12-22 21:00"
+
 # Elevation bands, feet. A band runs from its `top` of the previous band up to its own `top`.
 [[bands]]
 id = "base"
