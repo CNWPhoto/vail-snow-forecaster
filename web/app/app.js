@@ -63,7 +63,8 @@
   const mapReady = new Promise(resolve => { if (map.isStyleLoaded()) resolve(); else map.once('style.load', resolve); });
   window.vailMap = map;
   // On a phone the panel covers the lower half, so frame the ski area in what is left above it.
-  const frame = c => { if (innerWidth < 761) map.jumpTo({ center: c, zoom: 11.3, padding: { top: 56, bottom: Math.round(innerHeight * 0.46), left: 0, right: 0 } }); };
+  const narrow = () => innerWidth < 761;
+  const frame = c => { if (narrow()) map.jumpTo({ center: c, zoom: 11.3, padding: { top: 56, bottom: Math.round(innerHeight * 0.42) + 56, left: 0, right: 0 } }); };      // 0.42 is --sheet in app.css; 56 clears the legend
   mapReady.then(() => frame(HOME));
 
   /* ---------- controls ---------- */
@@ -80,9 +81,11 @@
   }
 
   function windowLabel(h) {
+    if (narrow()) return h === 'scrub' ? 'Hourly' : h === 'ten' ? '10 day' : h + ' h';      // on a phone all five fit on one row
     if (h === 'scrub') return 'Hour by hour';
-    return { 24: 'Next 24 h', 48: '48 h', 72: '72 h storm total' }[h];
+    return { 24: 'Next 24 h', 48: '48 h', 72: '72 h storm total', ten: '10 day' }[h];
   }
+  const windowName = h => ({ 24: 'Next 24 hours', 48: 'Next 48 hours', 72: '72-hour storm total' }[h]);
 
   /* The 10-day view: one day at a time, or all ten added up. `state.day` is 1 to 10, or 0 for the total. */
   const baseOK = () => !!(depth && depth.zones && depth.zones.length && state.newest);
@@ -147,8 +150,9 @@
 
   function setControls() {
     const wins = meta.windows.map(h => [String(h), windowLabel(h)]);
-    if (tenOK()) wins.push(['ten', '10 day']);
+    if (tenOK()) wins.push(['ten', windowLabel('ten')]);
     wins.push(['scrub', windowLabel('scrub')]);
+    wide = !narrow();
     buttons($('windows'), wins, 'win', () => {
       if (state.win === 'ten') return enterTen(0);
       const scrubbing = state.win === 'scrub';
@@ -156,10 +160,17 @@
       if (scrubbing) { state.layer = 'fallen'; state.range = 'fallen'; setControls(); frameTo(+$('slider').value); } else { stop(); state.frame = null; setControls(); refresh(); }
     });
     const leaveSpecial = () => { if (state.win === 'scrub' || state.win === 'ten') { state.win = '72'; $('scrub').hidden = true; stop(); } };
-    buttons($('layers'), baseOK() ? [...LAYERS, ['base', 'Base depth']] : LAYERS, 'layer', () => { if (state.win === 'scrub' || state.layer !== 'fallen') leaveSpecial(); if (state.layer !== 'fallen') state.range = 'fallen'; setControls(); refresh(); });
-    buttons($('range'), state.win === 'ten' ? tenRanges() : RANGES, 'range', () => { state.layer = 'fallen'; if (state.win === 'scrub') leaveSpecial(); setControls(); refresh(); });
+    const layers = baseOK() ? [...LAYERS, ['base', 'Base depth']] : LAYERS;
+    buttons($('layers'), layers, 'layer', () => { if (state.win === 'scrub' || state.layer !== 'fallen') leaveSpecial(); if (state.layer !== 'fallen') state.range = 'fallen'; openMenu(false); setControls(); refresh(); });
+    buttons($('range'), state.win === 'ten' ? tenRanges() : RANGES, 'range', () => { state.layer = 'fallen'; if (state.win === 'scrub') leaveSpecial(); openMenu(false); setControls(); refresh(); });
+    // The low and high end only exist for new snow; the button names what the map is showing.
+    const fallen = state.layer === 'fallen';
+    $('range').hidden = $('rangeCap').hidden = !fallen;
+    $('layerName').textContent = layers.find(l => l[0] === state.layer)[1] + (fallen && state.range !== 'fallen' ? { low: ', low end', high: ', high end' }[state.range] : '');
     setDaybar();
   }
+  let wide = true;
+  addEventListener('resize', () => { if (meta && wide === narrow()) setControls(); });      // the time buttons are named shorter on a phone
 
   /* ---------- data ---------- */
   const base = () => `${DATA}/${state.run}`;
@@ -279,7 +290,7 @@
       const rows = zones.map(z => ({ z, v: zoneValue(z) })).sort((a, b) => b.v[0] - a.v[0]), top = Math.max(6, ...rows.map(r => r.v[2]));
       const others = depth.sensors.filter(x => !x.target).map(x => `${x.name} (${x.elev_ft.toLocaleString()} ft) ${fmt(x.depth_in)} in`).join(' &middot; ');
       const hc = depth.history_check;
-      el.innerHTML = `<p class="hint" style="padding-bottom:4px">Estimated snow on the ground now: natural snowpack, not groomed or man-made base.</p>` + rows.map(({ z, v }) =>
+      el.innerHTML = `<p class="hint" style="padding-bottom:4px">Estimated snow on the ground now: natural snowpack, not groomed or man-made base. Tap the map for the estimate at any spot.</p>` + rows.map(({ z, v }) =>
         `<button class="card ${state.zone === z.id ? 'on' : ''}" data-id="${z.id}"><span class="name">${z.name}</span><span class="num">${fmt(v[0])}<small>in</small></span>
         <span class="sub">most of the zone ${fmt(v[1])} to ${fmt(v[2])} in</span>
         <span class="bar"><i style="left:${100 * v[1] / top}%;width:${100 * (v[2] - v[1]) / top}%"></i><b style="left:${100 * v[0] / top}%"></b></span></button>`).join('') +
@@ -301,7 +312,7 @@
         `<button class="card ${state.zone === z.id ? 'on' : ''}" data-id="${z.id}"><span class="name">${z.name}</span><span class="num">${lead(z)}<small>in</small></span>
         <span class="sub">${state.day && outlook.days[state.day - 1].lead_if_snow ? 'if it snows &middot; ' : ''}expected ${hf(t[0])} in &middot; 1 in 10 chance of more than ${hf(t[2])}</span>
         <span class="bar"><i style="left:${100 * t[1] / top}%;width:${100 * (t[2] - t[1]) / top}%"></i><b style="left:${100 * t[0] / top}%"></b></span></button>`).join('') +
-        `<p class="hint">Bars show the 10th to 90th percentile range; the tick is the expected amount. ${far ? 'Past day 3 the mountain is told apart by the long-term pattern, elevation, the snow level and wind loading from the ensemble\'s average wind, which is less certain the further out it is.' : meta.notes.zones}</p>`;
+        `<p class="hint">Tap anywhere on the mountain for the forecast at that spot. Bars show the 10th to 90th percentile range; the tick is the expected amount. ${far ? 'Past day 3 the mountain is told apart by the long-term pattern, elevation, the snow level and wind loading from the ensemble\'s average wind, which is less certain the further out it is.' : meta.notes.zones}</p>`;
       el.querySelectorAll('.card').forEach(c => { c.onclick = () => focusZone(c.dataset.id); });
       drawLabels();
       return;
@@ -318,7 +329,7 @@
         <span class="name">${z.name}</span><span class="num">${lead(z)}<small>${unit}</small></span>
         <span class="sub">${sub}</span>
         <span class="bar"><i style="left:${100 * f[1] / max}%;width:${100 * (f[2] - f[1]) / max}%"></i><b style="left:${100 * f[0] / max}%"></b></span></button>`;
-    }).join('') + `<p class="hint">The big figure is the likely range: the amount lands inside it a little over half the time. Bars show the wider 10th to 90th percentile range; the tick is the single most likely amount. Wind loading is included. ${meta.notes.zones}</p>`;
+    }).join('') + `<p class="hint">Tap anywhere on the mountain for the forecast at that spot. The big figure is the likely range: the amount lands inside it a little over half the time. Bars show the wider 10th to 90th percentile range; the tick is the single most likely amount. Wind loading is included. ${meta.notes.zones}</p>`;
     el.querySelectorAll('.card').forEach(c => { c.onclick = () => focusZone(c.dataset.id); });
     drawLabels();
   }
@@ -430,13 +441,15 @@
     const blocks = outlook.blocks.length ? '<div class="tiles">' + outlook.blocks.map(b => `<div><div class="n">${fmt(b.zones[zid][0])}"</div><div class="l">${b.name}: ${b.word}, range ${fmt(b.zones[zid][1])} to ${fmt(b.zones[zid][2])}</div></div>`).join('') + '</div>' : '';
     const sk = outlook.skill, lead = k => (sk[k] ? `${sk[k].skill_pct}%` : '');
     const hour = iso => day(iso, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+    const read = `<p class="note morn-note"><b>Morning total</b> is the number to check before skiing: new snow in the 24 hours up to 5 am, the time and window of a morning snow report. It spans two calendar days: most of the day before, plus the hours after midnight. It is this forecast's figure for the zone, not the resort's report. Today's is what the gauge measured.</p>
+      <p class="note">Below it, inches of new snow each calendar day, midnight to midnight. A day with at least a 1 in 5 chance of snow shows the range to expect if it snows, with the chance beside it; below that it reads 0. "Up to" is the 1-in-10 high end. Built from the GEFS ensemble run of ${hour(outlook.ensemble_run)}${outlook.european_run ? `, the European ensemble run of ${hour(outlook.european_run)}` : ''}${outlook.blend_run ? ` and the National Blend of ${hour(outlook.blend_run)}` : ''}; new runs arrive four times a day.${state.zone ? '' : ' Pick a zone on the Zones tab to see it here.'}</p>`;
+    const trust = `<p class="note">Tested on ${sk['4'] ? sk['4'].n : ''} held-out days per lead (winters ${outlook.skill_seasons || ''}). Improvement over simply quoting the average for the time of year: day 4 ${lead('4')}, day 5 ${lead('5')}, day 6 ${lead('6')}, day 7 ${lead('7')}, day 8 ${lead('8')}, day 9 ${lead('9')}, day 10 ${lead('10')}. "Expected" is the chance of snow times how much would fall, so the days add up to the total. The models forecast 5 am to 5 am, the way the gauge record they learned from is cut, and that is what was tested and what the Score tab grades: it is the morning total. Calendar days are re-cut from those by when the snow is forecast to fall (hour by hour for the first days, in six-hour steps after), and that re-cut has not been tested on its own. Past day 3 the forecast draws on the GEFS ensemble, the European (ECMWF) ensemble and the National Blend. It usually sits below the Blend's own figure on a snowy day: over six winters, when the Blend called for 0.30 to 0.45 in of water four to six days out, the gauge averaged 0.27 and nothing fell on almost a quarter of those days.</p>
+      <p class="note">Days past the third have no temperature profile: snow level and density there are estimated from the 700 mb temperature alone, and zones differ only by the long-term pattern.</p>`;
+    // The chart and the days come first; how to read them and how far to trust them open on request.
     el.innerHTML = `<div class="why"><h2>${zname}, next 10 days</h2>
-      <p class="note morn-note"><b>Morning total</b> is the number to check before skiing: new snow in the 24 hours up to 5 am, the time and window of a morning snow report. It spans two calendar days: most of the day before, plus the hours after midnight. It is this forecast's figure for the zone, not the resort's report. Today's is what the gauge measured.</p>
-      <p class="note">Below it, inches of new snow each calendar day, midnight to midnight. A day with at least a 1 in 5 chance of snow shows the range to expect if it snows, with the chance beside it; below that it reads 0. "Up to" is the 1-in-10 high end. ${tenOK() ? 'Tap a day to see it on the map. ' : ''}Updated ${hour(outlook.updated)} from the GEFS ensemble run of ${hour(outlook.ensemble_run)}${outlook.european_run ? `, the European ensemble run of ${hour(outlook.european_run)}` : ''}${outlook.blend_run ? ` and the National Blend of ${hour(outlook.blend_run)}` : ''}; new runs arrive four times a day, the next about ${hour(outlook.next_update)}.${state.zone ? '' : ' Pick a zone on the Zones tab to see it here.'}</p>
+      <p class="note">Updated ${hour(outlook.updated)}, next about ${hour(outlook.next_update)}.${tenOK() ? ' Tap a day to see it on the map.' : ''}</p>
       ${chart}${blocks}<div class="key" style="margin-top:10px"><span><i class="t"></i>10th to 90th percentile range</span><span>change is since a day ago</span></div>${all}${rows}
-      <h3>How far to trust it</h3>
-      <p class="note">Tested on ${sk['4'] ? sk['4'].n : ''} held-out days per lead (winters ${outlook.skill_seasons || ''}). Improvement over simply quoting the average for the time of year: day 4 ${lead('4')}, day 5 ${lead('5')}, day 6 ${lead('6')}, day 7 ${lead('7')}, day 8 ${lead('8')}, day 9 ${lead('9')}, day 10 ${lead('10')}. "Expected" is the chance of snow times how much would fall, so the days add up to the total. The models forecast 5 am to 5 am, the way the gauge record they learned from is cut, and that is what was tested and what the Score tab grades: it is the morning total. Calendar days are re-cut from those by when the snow is forecast to fall (hour by hour for the first days, in six-hour steps after), and that re-cut has not been tested on its own. Past day 3 the forecast draws on the GEFS ensemble, the European (ECMWF) ensemble and the National Blend. It usually sits below the Blend's own figure on a snowy day: over six winters, when the Blend called for 0.30 to 0.45 in of water four to six days out, the gauge averaged 0.27 and nothing fell on almost a quarter of those days.</p>
-      <p class="note">Days past the third have no temperature profile: snow level and density there are estimated from the 700 mb temperature alone, and zones differ only by the long-term pattern.</p></div>`;
+      <div class="folds">${fold('ten-read', 'How to read this', read)}${fold('ten-trust', 'How far to trust it', trust)}</div></div>`;
     el.querySelectorAll('[data-day]').forEach(b => { b.onclick = () => { if (tenOK()) enterTen(+b.dataset.day); }; });
   }
 
@@ -458,36 +471,41 @@
           Measured about ${fmt(s.observed_snow_in)} in of snow <span class="note">(${s.observed_in.toFixed(2)} in of water${s.depth_gain_in != null ? `; the depth sensor ended ${s.depth_gain_in >= 0 ? '+' : ''}${fmt(s.depth_gain_in)} in after settling` : ''})</span>.<br>
           <span class="note">Day-ahead forecasts added up: ${fmt(s.day_ahead_snow_in)} in (${fmt(s.day_ahead_snow_range[0])} to ${fmt(s.day_ahead_snow_range[1])}).</span></div>`; }).join('') : '';
       const depth = score.depth && score.depth.n ? `<p class="note">Settled depth at the sensor the next morning: typical miss ${score.depth.mae.toFixed(1)} in over ${score.depth.n} days snow was possible; ${score.depth.inside_10_90} of them inside the stated range. The sensor reads to the inch.</p>` : '';
+      const how = `<p class="note">Every forecast is logged when it is built, then set against the ${score.site} gauge. Inches of new snow at mid-mountain for the 24 hours from 5 am. The gauge measures water; "measured" snow is that water at the snow-to-water ratio the forecast used that day. ${c.live} of ${c.logged} were logged on the day; the other ${c.replay} were rebuilt afterwards from the model runs as issued, by a model frozen before the season.</p>${depth}`;
       card = `<h2>${score.season} season, scored</h2>
-        <p class="note">Every forecast is logged when it is built, then set against the ${score.site} gauge. Inches of new snow at mid-mountain for the 24 hours from 5 am. The gauge measures water; "measured" snow is that water at the snow-to-water ratio the forecast used that day. ${c.live} of ${c.logged} were logged on the day; the other ${c.replay} were rebuilt afterwards from the model runs as issued, by a model frozen before the season.</p>
+        <p class="note">New snow at mid-mountain in the 24 hours from 5 am, forecast a day ahead and then measured at the ${score.site} gauge.</p>
         <div class="tiles"><div><div class="n">${L.snow_mae.toFixed(1)}"</div><div class="l">typical miss, inches of snow, over ${L.n} days</div></div>
           <div><div class="n">${L.snow_raw_mae != null ? L.snow_raw_mae.toFixed(1) + '"' : '--'}</div><div class="l">raw HRRR's miss on the same days</div></div>
           <div><div class="n">${sp.n ? `${sp.inside_10_90}/${sp.n}` : '--'}</div><div class="l">days inside the range (8 in 10 expected)</div></div></div>
-        <p class="note">Season to date: ${fmt(L.snow_forecast_total_in)} in forecast day-ahead, about ${fmt(L.snow_observed_total_in)} in measured.</p>${depth}
+        <p class="note">Season to date: ${fmt(L.snow_forecast_total_in)} in forecast day-ahead, about ${fmt(L.snow_observed_total_in)} in measured.</p>
+        <div class="folds" style="margin-top:10px">${fold('score-how', 'How this is scored', how)}</div>
         <h3>Day by day</h3><div class="key"><span><i class="r"></i>forecast range</span><span><i class="t"></i>likely</span><span><i class="d"></i>measured</span></div>${rows}
         ${shown.some(d => d.provisional) ? '<p class="note" style="margin-top:6px">* provisional: the gauge\'s checked daily total is not in yet.</p>' : ''}${storms}`;
     }
-    const past = score && score.past_seasons && score.past_seasons.length ? `<h3>Earlier winters (hindcast)</h3><table class="past"><tr><th>Winter</th><th>Days</th><th>This model</th><th>Raw HRRR</th><th>Natl Blend</th></tr>` +
+    const past = score && score.past_seasons && score.past_seasons.length ? `<table class="past"><tr><th>Winter</th><th>Days</th><th>This model</th><th>Raw HRRR</th><th>Natl Blend</th></tr>` +
       score.past_seasons.map(p => `<tr><td>${p.season}</td><td>${p.n}</td><td>${p.snow_mae.toFixed(2)}</td><td>${p.snow_raw_mae.toFixed(2)}</td><td>${p.snow_nbm_mae != null ? p.snow_nbm_mae.toFixed(2) : '&ndash;'}</td></tr>`).join('') +
       '</table><p class="note" style="margin-top:6px">Typical miss in inches of snow at mid-mountain, day ahead. Each winter was forecast by a model that never saw it. All three are judged on the water they forecast, converted to snow the same way.</p>' : '';
     const lr = score && score.long_range, ho = lr && lr.held_out && Object.keys(lr.held_out).length ? lr.held_out : null;
-    const far = ho ? `<h3>Days 4 to 10, by how far ahead</h3><table class="past"><tr><th>Day</th><th>This season</th><th>Past winters</th><th>Avg for date</th><th>Gain</th></tr>` +
+    const far = ho ? `<table class="past"><tr><th>Day</th><th>This season</th><th>Past winters</th><th>Avg for date</th><th>Gain</th></tr>` +
       Object.keys(ho).map(k => { const now = lr.by_lead[k]; return `<tr><td>${k}</td><td>${now ? `${now.snow_mae.toFixed(2)} <span class="note">(${now.n})</span>` : '&ndash;'}</td><td>${ho[k].snow_mae.toFixed(2)}</td><td>${ho[k].snow_average_for_the_month_mae.toFixed(2)}</td><td>${ho[k].skill_pct}%</td></tr>`; }).join('') +
       `</table><p class="note" style="margin-top:6px">Typical miss in inches of snow at mid-mountain for one day, that many days ahead. "This season" counts every long-range forecast logged so far (days scored in brackets). "Past winters" is the same model on ${ho['4'].n} held-out days per lead; "Avg for date" is what quoting the monthly average would have missed by; "Gain" is the improvement in the full forecast range over that average.</p>` : '';
     const st = score && score.state && score.state.n ? score.state : null;
-    const ground = st ? `<h3>Snow on the ground, hour by hour</h3><p class="note">A running estimate of what is on the ground across the mountain, stepped every hour, is published for a ski game. It is driven by this gauge and its depth sensor, so this is a check that it stays tied to them, not an independent test. At 5 am over ${st.n} days, total depth at the sensor was off by ${st.depth_mae_in.toFixed(1)} in on a typical day (${st.depth_bias_in >= 0 ? 'high' : 'low'} by ${Math.abs(st.depth_bias_in).toFixed(1)} on average)${st.snow_days ? `; on the ${st.snow_days.n} days with at least 0.2 in of water, the 24-hour change in depth missed by ${st.snow_days.change_mae_in.toFixed(1)} in` : ''}. Fresh snow by zone, what skiers have tracked out and what the wind has moved are modelled and measured by nothing public. The resort's own stakes are not used here: its site's terms do not allow republishing them, and no public sensor measures snow in Blue Sky Basin.</p>` : '';
-    $('tab-score').innerHTML = `<div class="why">${card}${past}${far}${ground}<h2 style="margin-top:22px">What is measured and what is modelled</h2>
-      <h3>Checked against instruments</h3><p>${n.water || ''}</p><p>${n.settled || ''}</p><p>${n.gusts || ''}</p>
+    const ground = st ? `<p class="note">A running estimate of what is on the ground across the mountain, stepped every hour, is published for a ski game. It is driven by this gauge and its depth sensor, so this is a check that it stays tied to them, not an independent test. At 5 am over ${st.n} days, total depth at the sensor was off by ${st.depth_mae_in.toFixed(1)} in on a typical day (${st.depth_bias_in >= 0 ? 'high' : 'low'} by ${Math.abs(st.depth_bias_in).toFixed(1)} on average)${st.snow_days ? `; on the ${st.snow_days.n} days with at least 0.2 in of water, the 24-hour change in depth missed by ${st.snow_days.change_mae_in.toFixed(1)} in` : ''}. Fresh snow by zone, what skiers have tracked out and what the wind has moved are modelled and measured by nothing public. The resort's own stakes are not used here: its site's terms do not allow republishing them, and no public sensor measures snow in Blue Sky Basin.</p>` : '';
+    const what = `<h3>Checked against instruments</h3><p>${n.water || ''}</p><p>${n.settled || ''}</p><p>${n.gusts || ''}</p>
       <h3>Known weakness</h3><p>${n.big_days || ''}</p>
-      <h3>Modelled, not checked</h3><p>${n.zones}</p><p>${n.wind}</p><p>${n.sun}</p>
+      <h3>Modelled, not checked</h3><p>${n.zones}</p><p>${n.wind}</p><p>${n.sun}</p>`;
+    // The season's record first; the longer tables and the method open on request. Sources and the notice are never folded away.
+    $('tab-score').innerHTML = `<div class="why">${card}
+      <div class="folds">${fold('score-past', 'Earlier winters (hindcast)', past)}${fold('score-far', 'Days 4 to 10, by how far ahead', far)}${fold('score-ground', 'Snow on the ground, hour by hour', ground)}${fold('score-what', 'What is measured and what is modelled', what)}</div>
       <h3>Sources</h3><p class="note">Forecast models: NOAA HRRR, GFS, GEFS and the National Blend of Models, and the ECMWF ensemble. This forecast is based in part on data and products of the European Centre for Medium-Range Weather Forecasts (ECMWF), used under CC BY 4.0; ECMWF has no part in it and does not endorse it. Observations: USDA NRCS SNOTEL, NWS COOP, CoCoRaHS, and FAA/NWS airport stations through the Iowa Environmental Mesonet. Precipitation pattern: PRISM Climate Group, Oregon State University. Terrain: USGS 3DEP. Lifts and trails: &copy; OpenStreetMap contributors. Basemaps: USGS. Terrain tiles: Mapzen, hosted by AWS.</p>
-      <p class="note"><b>Independent hobby project.</b> Not affiliated with, endorsed by or connected to Vail Resorts or Vail Mountain. Not an official forecast, not the resort's snow report, and not avalanche advice: for avalanche conditions see the Colorado Avalanche Information Center. Forecasts can be wrong; do not rely on this for safety or travel decisions. Built ${meta.built}.</p></div>`;
+      <p class="note" id="notice"><b>Independent hobby project.</b> Not affiliated with, endorsed by or connected to Vail Resorts or Vail Mountain. Not an official forecast, not the resort's snow report, and not avalanche advice: for avalanche conditions see the Colorado Avalanche Information Center. Forecasts can be wrong; do not rely on this for safety or travel decisions. Built ${meta.built}.</p></div>`;
   }
 
   function renderLegend(density) {
     if (baseOn()) {
-      $('legend').innerHTML = `<div class="t">Base depth, inches</div><div class="sw">${DEPTH.map(c => `<span style="background:${c}"></span>`).join('')}</div>
-        <div class="lb">${depth.bins.labels.map(l => `<span>${l}</span>`).join('')}</div><div class="tag">Estimate: SNODAS tied to the SNOTEL sensor</div>`;
+      $('legend').innerHTML = `<div class="t">Base depth, inches (estimate)</div><div class="sw">${DEPTH.map(c => `<span style="background:${c}"></span>`).join('')}</div>
+        <div class="lb">${depth.bins.labels.map(l => `<span>${l}</span>`).join('')}</div>`;
+      $('legend').title = 'Estimate: SNODAS tied to the SNOTEL sensor';
       return;
     }
     const colors = density ? DENSITY : RAMP;
@@ -495,8 +513,8 @@
     const tenTitle = `${{ low: 'Low end', fallen: { 'Expected': 'Expected snow', 'If it snows': 'Snow if it snows', 'Likely': 'Likely snow' }[tenMiddle()], high: 'High end' }[state.range]}, ${state.win === 'ten' ? tenWhen(false) : ''}, inches`;
     const title = state.win === 'ten' ? tenTitle : density ? 'Snow density' : { fallen: state.range === 'fallen' ? 'New snow, inches' : (state.range === 'low' ? 'Low end, inches' : 'High end, inches'), settled: 'Settled depth, inches' }[state.layer];
     $('legend').innerHTML = `<div class="t">${title}</div><div class="sw">${colors.map(c => `<span style="background:${c}"></span>`).join('')}</div>
-      <div class="lb">${labels.map(l => `<span>${l.replace('trace-1', '<1')}</span>`).join('')}</div>` + (state.layer === 'fallen' && state.win !== 'ten' ? '<div class="tag">Includes wind loading, tuned to local reports</div>' : '') +
-      (state.win === 'ten' ? '<div class="tag">Includes wind loading, tuned to local reports</div>' : '');
+      <div class="lb">${labels.map(l => `<span>${l.replace('trace-1', '<1')}</span>`).join('')}</div>`;
+    $('legend').title = state.layer === 'fallen' ? 'Includes wind loading, tuned to local reports' : '';      // the Zones tab says the same in words
   }
 
   /* ---------- point forecast ---------- */
@@ -531,6 +549,17 @@
   }
 
   function showPoint(p) {
+    const el = $('tab-point');
+    drawPoint(p);
+    const b = document.createElement('button');
+    b.className = 'clear';
+    b.textContent = 'Clear';
+    b.setAttribute('aria-label', 'Clear this spot');
+    b.onclick = clearPoint;
+    (el.querySelector('.why') || el.firstElementChild || el).prepend(b);
+  }
+
+  function drawPoint(p) {
     const i = lookup(p.lng, p.lat);
     const el = $('tab-point');
     mapReady.then(() => map.getSource('pin').setData({ type: 'FeatureCollection', features: i == null ? [] : [{ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {} }] }));
@@ -562,7 +591,7 @@
     const mark = h === '72' ? '' : `<line x1="${x(+h)}" x2="${x(+h)}" y1="${y(0)}" y2="${y(top / 1.08)}" stroke="#ff7a2f" stroke-dasharray="3 3"/>`;
     el.innerHTML = `<div class="why"><div class="note">${zone ? zone.name : 'Ski area'} &middot; ${Math.round(grid.elev_ft[i] / 10) * 10} ft</div>
       <div class="pointhead">${grid['mid_lo_' + h] ? rng(get('mid_lo'), get('mid_hi')) : hf(get('fallen'))}<small> in likely</small></div>
-      <div class="note">Most likely ${hf(get('fallen'))} in; 1 in 10 chance of under ${hf(get('low'))} or over ${hf(get('high'))}. ${windowLabel(+h)}, wind loading included.</div>
+      <div class="note">Most likely ${hf(get('fallen'))} in; 1 in 10 chance of under ${hf(get('low'))} or over ${hf(get('high'))}. ${windowName(+h)}, wind loading included.</div>
       <div class="kv"><span>Settled by the end</span><span>${hf(get('settled'))} in</span>
         <span>Snow to water</span><span>${fmt(get('density'))} to 1</span></div>
       <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Accumulation by hour">
@@ -573,7 +602,23 @@
     wire();
   }
 
-  map.on('click', e => { state.point = e.lngLat; showPoint(e.lngLat); tab('point'); if (innerWidth < 761 && document.body.classList.contains('sheet-low')) sheet(''); });
+  /* The Point tab exists only while a spot is picked. */
+  function clearPoint() {
+    state.point = null;
+    mapReady.then(() => map.getSource('pin').setData({ type: 'FeatureCollection', features: [] }));
+    $('tabPoint').hidden = true;
+    $('tab-point').innerHTML = '';
+    tab(state.back || 'zones');
+  }
+  map.on('click', e => {
+    if (!$('menu').hidden) return openMenu(false);                    // a tap outside the open menu only closes it
+    if (state.tab !== 'point') state.back = state.tab;
+    state.point = e.lngLat;
+    $('tabPoint').hidden = false;
+    showPoint(e.lngLat);
+    tab('point');
+    if (narrow() && document.body.classList.contains('sheet-low')) sheet('');
+  });
 
   /* ---------- scrubber ---------- */
   function frameTime(h) { return day(new Date(new Date(meta.run + 'Z').getTime() + h * 36e5).toISOString().slice(0, 19), { weekday: 'short', hour: 'numeric' }); }
@@ -597,6 +642,23 @@
   document.querySelectorAll('#tabs button').forEach(b => { b.onclick = () => tab(b.dataset.tab); });
   function sheet(size) { $('panel').className = size; document.body.classList.toggle('sheet-tall', size === 'tall'); document.body.classList.toggle('sheet-low', size === 'low'); }
   $('grip').onclick = () => sheet({ '': 'tall', tall: 'low', low: '' }[$('panel').className]);
+  // The layers menu: what the map shows and how the map looks, behind one button.
+  function openMenu(open) { $('menu').hidden = !open; $('layerBtn').setAttribute('aria-expanded', String(open)); }
+  $('layerBtn').onclick = () => openMenu($('menu').hidden);
+  document.addEventListener('click', e => { if (!$('menu').hidden && !$('layerbox').contains(e.target) && !$('map').contains(e.target)) openMenu(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') openMenu(false); });
+  // Folded explanations stay as the reader left them when a tab is redrawn.
+  const unfolded = new Set();
+  const fold = (key, title, html) => (html ? `<details class="fold" data-k="${key}"${unfolded.has(key) ? ' open' : ''}><summary>${title}</summary>${html}</details>` : '');
+  document.addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.k; if (k) unfolded[e.target.open ? 'add' : 'delete'](k); }, true);
+  // The one-line notice at the foot of the panel leads to the full one.
+  $('about').onclick = e => {
+    e.preventDefault();
+    tab('score');
+    if (narrow() && document.body.classList.contains('sheet-low')) sheet('');
+    const d = document.getElementById('notice');
+    if (d) d.scrollIntoView({ block: 'end' });
+  };
   const toggle = (id, fn) => { $(id).onclick = () => { const on = $(id).getAttribute('aria-pressed') !== 'true'; $(id).setAttribute('aria-pressed', String(on)); fn(on); }; };
   toggle('basemap', on => {
     ['relief', 'topo'].forEach(l => map.setLayoutProperty(l, 'visibility', on ? 'none' : 'visible'));

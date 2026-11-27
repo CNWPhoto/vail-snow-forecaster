@@ -5,6 +5,7 @@
   --panel-w: 372px;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; background: var(--ink); color: var(--text); font: 14px/1.45 var(--body); -webkit-font-smoothing: antialiased; }
 button, select, input { font: inherit; color: inherit; }
 #map { position: fixed; inset: 0 0 0 var(--panel-w); }
@@ -26,12 +27,24 @@ h1.wide { font-size: 68px; line-height: .95; }
 #headSub b { color: var(--text); font-weight: 600; }
 #flag { margin-top: 12px; padding: 8px 10px; border-left: 3px solid var(--signal); background: rgba(255, 122, 47, .1); font-size: 13px; }
 
-#tabs { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--line); }
-#tabs button { background: none; border: 0; padding: 11px 0 9px; font: 600 14.5px var(--display); letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; }
+#tabs { display: flex; border-bottom: 1px solid var(--line); }
+#tabs button { flex: 1; background: none; border: 0; padding: 11px 0 9px; font: 600 14.5px var(--display); letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; }
 #tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--signal); }
 .tab { overflow-y: auto; flex: 1; padding: 6px 0 24px; }
 .hint { color: var(--muted); padding: 14px 22px; margin: 0; }
 #fine { flex: none; padding: 7px 22px 8px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.35; }
+#fine a { color: inherit; }
+
+/* an explanation that stays out of the way until it is asked for */
+.folds { margin-top: 16px; border-bottom: 1px solid var(--line); }
+details.fold { border-top: 1px solid var(--line); }
+details.fold > summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; font-weight: 600; list-style: none; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: '+'; color: var(--muted); font: 500 17px/1 var(--body); }
+details.fold[open] > summary::after { content: '\2013'; }
+details.fold > :last-child { margin-bottom: 12px; }
+details.fold > h3:first-of-type { margin-top: 4px; }
+.clear { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 3px 9px; color: var(--muted); cursor: pointer; font-size: 12px; float: right; }
 
 .groupname { font: 600 12px var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 14px 22px 4px; }
 .card { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 9px 22px 10px; border: 0; border-bottom: 1px solid var(--line); width: 100%; text-align: left; background: none; cursor: pointer; }
@@ -55,7 +68,7 @@ h1.wide { font-size: 68px; line-height: .95; }
 .analog .d { font: 600 16px var(--display); letter-spacing: .04em; }
 .analog .r { color: var(--muted); font-size: 12.5px; }
 .outlook { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.outlook div { border: 1px solid var(--line); border-radius: 4px; padding: 7px 8px; }
+.outlook > div { border: 1px solid var(--line); border-radius: 4px; padding: 7px 8px; }
 .outlook .n { font: 800 22px/1 var(--display); }
 .note { color: var(--muted); font-size: 12.5px; }
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 10px 0; }
@@ -82,7 +95,7 @@ svg.chart { width: 100%; height: 120px; display: block; margin-top: 8px; }
 .chip.possible { border-color: var(--warn); color: var(--warn); }
 .chip.likely { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 600; }
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 4px; }
-.tiles div { border: 1px solid var(--line); border-radius: 4px; padding: 8px 8px 7px; }
+.tiles > div { border: 1px solid var(--line); border-radius: 4px; padding: 8px 8px 7px; }
 .tiles .n { font: 800 26px/1 var(--display); }
 .tiles .l { color: var(--muted); font-size: 11.5px; line-height: 1.3; margin-top: 4px; }
 .sday { padding: 7px 0 8px; border-bottom: 1px solid var(--line); }
@@ -138,8 +151,21 @@ table.days tr.sum td { border-top: 2px solid var(--line); color: var(--text); }
 .tday.total { grid-template-columns: 1fr auto; border-bottom: 2px solid var(--line); }
 
 /* ---- map chrome ---- */
-#bar { position: fixed; top: 12px; left: calc(var(--panel-w) + 12px); right: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; z-index: 3; pointer-events: none; }
-#barRow { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+#bar { position: fixed; top: 12px; left: calc(var(--panel-w) + 12px); right: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; z-index: 5; pointer-events: none; }      /* above the legend and the sheet, so the open menu is never covered */
+#barRow { display: flex; gap: 8px; align-self: stretch; }
+#layerbox { position: relative; margin-left: auto; pointer-events: auto; }
+#layerBtn { display: flex; align-items: center; gap: 7px; height: 100%; min-height: 36px; background: rgba(11, 22, 34, .9); border: 1px solid var(--line); border-radius: 6px; padding: 0 11px;
+  cursor: pointer; color: var(--text); font-weight: 500; white-space: nowrap; backdrop-filter: blur(8px); }
+#layerBtn[aria-expanded="true"] { border-color: var(--text); }
+#menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 190px; background: rgba(11, 22, 34, .97); border: 1px solid var(--line); border-radius: 8px; padding: 6px; backdrop-filter: blur(8px); }
+#menu .cap { font: 600 11px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 8px 8px 3px; }
+#menu .list { display: flex; flex-direction: column; }
+#menu .list button { display: flex; align-items: center; gap: 9px; background: none; border: 0; border-radius: 4px; padding: 7px 8px; text-align: left; cursor: pointer; color: var(--muted); white-space: nowrap; }
+#menu .list button:hover { background: var(--ink-2); }
+#menu .list button::before { content: ''; flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); }
+#menu .list.checks button::before { border-radius: 2px; }
+#menu .list button[aria-pressed="true"] { color: var(--text); }
+#menu .list button[aria-pressed="true"]::before { background: var(--signal); border-color: var(--signal); }
 .group { display: flex; background: rgba(11, 22, 34, .9); border: 1px solid var(--line); border-radius: 6px; padding: 3px; backdrop-filter: blur(8px); pointer-events: auto; }
 .group button { background: none; border: 0; padding: 6px 11px; border-radius: 4px; font-weight: 500; white-space: nowrap; cursor: pointer; color: var(--muted); }
 .group button[aria-pressed="true"] { background: var(--text); color: var(--ink); }
@@ -153,19 +179,14 @@ table.days tr.sum td { border-top: 2px solid var(--line); color: var(--text); }
 #daybar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 #daybar[hidden] { display: none; }
 #daybar button { padding: 6px 9px; font-size: 13px; }
-/* the map buttons sit above the legend in one stack, so a taller legend pushes them up instead of sliding under them */
-#corner { position: fixed; right: 12px; bottom: 28px; z-index: 3; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
+#corner { position: fixed; right: 12px; bottom: 28px; z-index: 3; pointer-events: none; }
 #corner > * { pointer-events: auto; }
-#legend { background: rgba(11, 22, 34, .9); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px 8px; backdrop-filter: blur(8px); }
-#legend .t { font: 600 12px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-#legend .sw { display: flex; }
-#legend .sw span { width: 34px; height: 10px; }
+#legend { background: rgba(11, 22, 34, .9); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px 6px; backdrop-filter: blur(8px); }
+#legend .t { font: 500 11.5px var(--body); color: var(--muted); margin-bottom: 5px; }
+#legend .sw { display: flex; border-radius: 2px; overflow: hidden; }
+#legend .sw span { width: 34px; height: 8px; }
 #legend .lb { display: flex; font-size: 10.5px; color: var(--muted); margin-top: 3px; }
 #legend .lb span { width: 34px; }
-#legend .tag { margin-top: 6px; font-size: 11px; color: var(--signal); }
-#mapctl { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
-#mapctl button { background: rgba(11, 22, 34, .9); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; color: var(--muted); backdrop-filter: blur(8px); }
-#mapctl button[aria-pressed="true"] { color: var(--text); border-color: var(--text); }
 .zlabel { font: 800 15px/1 var(--display); color: #fff; text-shadow: 0 0 3px #04101c, 0 0 6px #04101c, 0 1px 1px #04101c; text-align: center; pointer-events: none; letter-spacing: .02em; }
 .zlabel small { display: block; font: 600 10px var(--body); letter-spacing: .06em; text-transform: uppercase; opacity: .92; }
 .gauge { font: 800 15px/1 var(--display); color: #0b1622; background: #fff; border: 2px solid var(--signal); border-radius: 14px; padding: 4px 8px 3px; text-align: center; pointer-events: none; }
@@ -174,11 +195,11 @@ table.days tr.sum td { border-top: 2px solid var(--line); color: var(--text); }
 
 /* ---- phone ---- */
 @media (max-width: 760px) {
-  :root { --panel-w: 0px; }
+  :root { --panel-w: 0px; --sheet: 42vh; }             /* --sheet: how much of the screen the panel takes; app.js frames the map with the same share */
+  body.sheet-tall { --sheet: 86vh; }
+  body.sheet-low { --sheet: 118px; }
   #map { inset: 0; }
-  #panel { inset: auto 0 0 0; width: auto; height: 46vh; border-right: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; transition: height .25s ease; padding-bottom: env(safe-area-inset-bottom); }
-  #panel.tall { height: 86vh; }
-  #panel.low { height: 118px; }
+  #panel { inset: auto 0 0 0; width: auto; height: var(--sheet); border-right: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; transition: height .25s ease; padding-bottom: env(safe-area-inset-bottom); }
   #grip { display: block; background: none; border: 0; padding: 8px 0 2px; cursor: pointer; }
   #grip span { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto; }
   #masthead { padding: 4px 18px 10px; }
@@ -192,15 +213,17 @@ table.days tr.sum td { border-top: 2px solid var(--line); color: var(--text); }
   .seg { margin-left: 18px; }
   .lifthead span:not(:first-child), .lift .chip { width: 84px; }
   #bar { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); }
-  #barRow { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }
-  #barRow::-webkit-scrollbar { display: none; }
+  #windows { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  #windows::-webkit-scrollbar { display: none; }
+  #windows button { flex: 1; }
   .group button { padding: 7px 10px; }
+  #layerName { display: none; }
+  #layerBtn { padding: 0 11px; }
   #scrub { align-self: stretch; }
   #slider { flex: 1; width: auto; }
-  #corner { display: contents; }                 /* on a phone the buttons go top right and the legend sits above the sheet */
-  #mapctl { position: fixed; z-index: 3; top: calc(104px + env(safe-area-inset-top)); right: 8px; }
-  #legend { position: fixed; z-index: 3; right: 8px; bottom: calc(46vh + 10px); padding: 7px 8px 6px; }
-  #legend .sw span, #legend .lb span { width: 27px; }
-  body.sheet-tall #legend, body.sheet-tall #mapctl { display: none; }
-  body.sheet-low #legend { bottom: 128px; }
+  #corner { display: contents; }                 /* on a phone the legend rides on the top edge of the sheet, on the left, clear of the mountain */
+  #legend { position: fixed; z-index: 3; left: 8px; bottom: calc(var(--sheet) + 8px); padding: 6px 8px 5px; transition: bottom .25s ease; }
+  #legend .sw span, #legend .lb span { width: 28px; }
+  #menu { max-height: calc(100vh - 76px - env(safe-area-inset-top)); overflow-y: auto; }
+  body.sheet-tall #legend { display: none; }
 }
