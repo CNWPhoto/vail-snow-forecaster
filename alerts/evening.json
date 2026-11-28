@@ -1,6 +1,6 @@
 {
  "kind": "evening",
- "time": "2026-11-27T04:50",
+ "time": "2026-11-28T04:50",
  "zone": "Mid-Vail / Mountaintop",
  "thresholds": {
   "likely_in": 4.0,
@@ -9,41 +9,41 @@
  "fire": false,
  "available": true,
  "reasons": [],
- "title": "Vail Mountain: 0.9 in likely by 5 am (0.9 to 0.9)",
+ "title": "Vail Mountain: 3 in likely by 5 am (1.2 to 6.3)",
  "lines": [
-  "Mid-Vail / Mountaintop: 0.9 in likely in the 24 hours to 5 am, range 0.9 to 0.9.",
-  "Tonight, 5 pm to 5 am: 0 in likely (0 to 0). Since 5 am the gauge has measured 0.04 in of water, about 0.9 in of snow.",
-  "Tomorrow, 5 am to 5 am: 0.5 in likely (0 to 6.1).",
+  "Mid-Vail / Mountaintop: 3 in likely in the 24 hours to 5 am, range 1.2 to 6.3.",
+  "Tonight, 5 pm to 5 am: 1.8 in likely (0 to 5). Since 5 am the gauge has measured 0.06 in of water, about 1.2 in of snow.",
+  "Tomorrow, 5 am to 5 am: 3.9 in likely (0.2 to 9.3).",
   "From the 5 pm model run.",
-  "Ridge gusts near 33 mph tomorrow. Wind hold possible on Orient Express Lift.",
+  "Ridge gusts near 51 mph tomorrow. Wind hold likely on Orient Express Lift, possible on Skyline Express Lift, possible on Sun Up Express Lift, possible on Earl's Express Lift.",
   "Big days are under-called by the likely number: read the high end."
  ],
  "basis": "00z",
- "run": "2026-11-27T00:00:00",
+ "run": "2026-11-28T00:00:00",
  "measured_today": {
-  "water_in": 0.04,
+  "water_in": 0.06,
   "hours_reported": 12,
   "hours": 12,
-  "through": "2026-11-27T00:00:00",
+  "through": "2026-11-28T00:00:00",
   "depth_change_in": 0.0,
   "depth_in": 3.0
  },
  "tonight": [
+  1.8,
   0.0,
-  0.0,
-  0.0
+  5.0
  ],
  "by_5am": [
-  0.9,
-  0.9,
-  0.9
+  3.0,
+  1.2,
+  6.3
  ],
  "tomorrow": [
-  0.5,
-  0.0,
-  6.1
+  3.9,
+  0.2,
+  9.3
  ],
- "ratio": 19.1,
- "per_inch": 22.14,
- "per_inch_tomorrow": 17.47
+ "ratio": 17.6,
+ "per_inch": 20.46,
+ "per_inch_tomorrow": 15.61
 }
