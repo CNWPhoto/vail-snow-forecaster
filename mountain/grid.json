@@ -1,0 +1,228 @@
+{
+ "schema": 1,
+ "resort": "vail",
+ "crs": "EPSG:26913",
+ "bounds": {
+  "west": 376200.0,
+  "south": 4379504.0,
+  "east": 391560.0,
+  "north": 4390000.0
+ },
+ "width": 960,
+ "height": 656,
+ "cell_m": 16.0,
+ "origin": "Row 0 is the north edge and column 0 the west edge. Texel (col, row) covers west + col*cell to west + (col+1)*cell and north - row*cell down to north - (row+1)*cell.",
+ "game": {
+  "E0": 376200.0,
+  "N_TOP": 4390000.0,
+  "width_m": 15360.0,
+  "height_m": 10496.0,
+  "game_cells_per_state_cell": 8,
+  "lookup": "u = x / 15360, v = z / 10496, with x metres east of E0 and z metres south of N_TOP. Upload without flipping (in three.js: flipY = false), with no colour-space conversion and no premultiplied alpha."
+ },
+ "zones": [
+  {
+   "index": 1,
+   "id": "lionshead",
+   "name": "Lionshead / Born Free",
+   "group": "Front Side"
+  },
+  {
+   "index": 2,
+   "id": "eagles_nest",
+   "name": "Eagle's Nest / Avanti",
+   "group": "Front Side"
+  },
+  {
+   "index": 3,
+   "id": "game_creek",
+   "name": "Game Creek Bowl",
+   "group": "Front Side"
+  },
+  {
+   "index": 4,
+   "id": "mid_vail",
+   "name": "Mid-Vail / Mountaintop",
+   "group": "Front Side"
+  },
+  {
+   "index": 5,
+   "id": "northwoods",
+   "name": "Northwoods",
+   "group": "Front Side"
+  },
+  {
+   "index": 6,
+   "id": "vail_village",
+   "name": "Riva Ridge / Vail Village",
+   "group": "Front Side"
+  },
+  {
+   "index": 7,
+   "id": "golden_peak",
+   "name": "Golden Peak",
+   "group": "Front Side"
+  },
+  {
+   "index": 8,
+   "id": "highline",
+   "name": "Highline / Sourdough",
+   "group": "Front Side"
+  },
+  {
+   "index": 9,
+   "id": "sun_down",
+   "name": "Sun Down Bowl",
+   "group": "Back Bowls"
+  },
+  {
+   "index": 10,
+   "id": "sun_up",
+   "name": "Sun Up Bowl",
+   "group": "Back Bowls"
+  },
+  {
+   "index": 11,
+   "id": "tea_cup",
+   "name": "Tea Cup Bowl",
+   "group": "Back Bowls"
+  },
+  {
+   "index": 12,
+   "id": "china",
+   "name": "China Bowl",
+   "group": "Back Bowls"
+  },
+  {
+   "index": 13,
+   "id": "siberia",
+   "name": "Siberia Bowl",
+   "group": "Back Bowls"
+  },
+  {
+   "index": 14,
+   "id": "inner_mongolia",
+   "name": "Inner Mongolia Bowl",
+   "group": "Back Bowls"
+  },
+  {
+   "index": 15,
+   "id": "outer_mongolia",
+   "name": "Outer Mongolia Bowl",
+   "group": "Back Bowls"
+  },
+  {
+   "index": 16,
+   "id": "petes",
+   "name": "Pete's Bowl",
+   "group": "Blue Sky Basin"
+  },
+  {
+   "index": 17,
+   "id": "earls",
+   "name": "Earl's Bowl",
+   "group": "Blue Sky Basin"
+  }
+ ],
+ "classes": [
+  {
+   "index": 0,
+   "id": "out_of_bounds",
+   "label": "Outside the ski-area boundary"
+  },
+  {
+   "index": 1,
+   "id": "groomed",
+   "label": "Groomed run"
+  },
+  {
+   "index": 2,
+   "id": "run",
+   "label": "Ungroomed run"
+  },
+  {
+   "index": 3,
+   "id": "bowl",
+   "label": "Open bowl"
+  },
+  {
+   "index": 4,
+   "id": "glade",
+   "label": "Glade"
+  },
+  {
+   "index": 5,
+   "id": "trees",
+   "label": "Tight trees"
+  }
+ ],
+ "credits": "Elevation and tree canopy: U.S. Geological Survey 3D Elevation Program. Runs, lifts and boundary: (c) OpenStreetMap contributors (ODbL). A modelled estimate, not an official report; not affiliated with Vail Resorts.",
+ "encoding": {
+  "note": "Lossless WebP, 8-bit RGB, no alpha. value = channel / 255 * max unless stated. Load with no colour-space conversion and no vertical flip. Every texture covers the whole grid box; the history texture has half as many pixels each way, so sample all of them by u, v and not by pixel.",
+  "surface": {
+   "r": {
+    "field": "fresh_in",
+    "max": 51.0,
+    "what": "depth of the fresh layer, inches"
+   },
+   "g": {
+    "field": "tracked_open",
+    "max": 1.0,
+    "what": "share of that layer already skied, on open ground (0 untouched, 1 fully tracked)"
+   },
+   "b": {
+    "field": "tracked_trees",
+    "max": 1.0,
+    "what": "the same under trees; pick g or b with the game's own canopy mask"
+   }
+  },
+  "character": {
+   "r": {
+    "field": "density_kg_m3",
+    "max": 408.0,
+    "what": "density of the fresh layer; 0 where there is none"
+   },
+   "g": {
+    "field": "wind",
+    "what": "(channel - 128) / 112: -1 scoured, 0 untouched, +1 loaded to twice what fell"
+   },
+   "b": {
+    "field": "crust",
+    "what": "0 none, 128 sun crust, 255 melt-freeze crust"
+   }
+  },
+  "history": {
+   "r": {
+    "field": "new_24h_in",
+    "max": 51.0,
+    "what": "new snow in the last 24 hours, inches"
+   },
+   "g": {
+    "field": "new_72h_in",
+    "max": 102.0,
+    "what": "last 72 hours"
+   },
+   "b": {
+    "field": "new_7d_in",
+    "max": 153.0,
+    "what": "last 7 days"
+   }
+  },
+  "terrain": {
+   "r": {
+    "field": "class",
+    "what": "terrain class index * 40 (see grid.json classes)"
+   },
+   "g": {
+    "field": "groomed",
+    "max": 1.0,
+    "what": "share of the cell's open ground groomed nightly (assumed: green and blue runs)"
+   },
+   "b": {
+    "field": "zone",
+    "what": "zone index * 10 (see grid.json zones; 0 = no zone)"
+   }
+  }
+ },
+ "terrain": "terrain.webp"
+}

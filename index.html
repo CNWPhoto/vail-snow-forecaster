@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snow forecast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link href="app.css?v=20261126b" rel="stylesheet">
+</head>
+<body>
+<div id="map" aria-label="Snow forecast map"></div>
+
+<header id="bar">
+  <div id="barRow">
+    <div class="group" id="windows" role="group" aria-label="Time window"></div>
+    <!-- everything that is set once and left alone lives behind one button -->
+    <div id="layerbox">
+      <button id="layerBtn" aria-haspopup="true" aria-expanded="false" aria-controls="menu" aria-label="Layers and map options">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+        <span id="layerName">New snow</span>
+      </button>
+      <div id="menu" hidden>
+        <div class="cap">Show</div>
+        <div class="list" id="layers" role="group" aria-label="Layer"></div>
+        <div class="cap" id="rangeCap">Amount</div>
+        <div class="list" id="range" role="group" aria-label="Range"></div>
+        <div class="cap">Map</div>
+        <div class="list checks" role="group" aria-label="Map">
+          <button id="basemap" aria-pressed="false">Satellite</button>
+          <button id="three" aria-pressed="false">3D</button>
+          <button id="overlay" aria-pressed="true">Lifts and trails</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- the day buttons and the hour slider sit under the rows above, however many lines those wrap to -->
+  <div id="daybar" class="group" role="group" aria-label="Day" hidden></div>
+  <div id="scrub" hidden>
+    <button id="play" aria-label="Play">&#9654;</button>
+    <input id="slider" type="range" min="0" max="11" step="1" value="11" aria-label="Hours into the forecast">
+    <output id="scrubLabel"></output>
+  </div>
+</header>
+
+<aside id="panel">
+  <button id="grip" aria-label="Expand or collapse the panel"><span></span></button>
+  <div id="masthead">
+    <div class="eyebrow"><span id="issued">Loading</span><select id="runs" aria-label="Forecast run"></select></div>
+    <h1><span id="headNum">--</span><span class="unit">in</span></h1>
+    <p id="headSub"></p>
+    <div id="flag" hidden></div>
+  </div>
+  <nav id="tabs" role="tablist">
+    <button role="tab" data-tab="zones" aria-selected="true">Zones</button>
+    <button role="tab" data-tab="ten" aria-selected="false">10 day</button>
+    <button role="tab" data-tab="why" aria-selected="false">Why</button>
+    <button role="tab" data-tab="score" aria-selected="false">Score</button>
+    <!-- shown once a spot on the map has been tapped -->
+    <button role="tab" data-tab="point" id="tabPoint" aria-selected="false" hidden>Point</button>
+  </nav>
+  <section id="tab-zones" class="tab"></section>
+  <section id="tab-ten" class="tab" hidden></section>
+  <section id="tab-why" class="tab" hidden></section>
+  <section id="tab-point" class="tab" hidden></section>
+  <section id="tab-score" class="tab" hidden></section>
+  <footer id="fine">Unofficial: not Vail Resorts, not avalanche advice. <a href="#about" id="about">About</a></footer>
+</aside>
+
+<div id="corner">
+  <div id="legend" aria-label="Legend"></div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js?v=20261126b"></script>
+</body>
+</html>
